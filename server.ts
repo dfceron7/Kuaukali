@@ -456,9 +456,35 @@ app.get("/api/properties", (req, res) => {
   res.json(db.properties || []);
 });
 
+// Retrieve specific property details with users and payment status
+app.get("/api/properties/:id/details", (req, res) => {
+  const { id } = req.params;
+  const properties = db.properties || [];
+  const property = properties.find(p => p.id === id);
+  if (!property) {
+    return res.status(404).json({ error: "Inmueble no encontrado." });
+  }
+
+  const users = (db.users || []).filter(u => u.house && u.house.toLowerCase() === property.name.toLowerCase()).map(u => ({
+    id: u.id,
+    username: u.username,
+    email: u.email,
+    role: u.role,
+    isActive: u.isActive !== false
+  }));
+
+  const paymentStatus = getHousePaymentStatus(property.name);
+
+  res.json({
+    property,
+    users,
+    paymentStatus
+  });
+});
+
 // Create property
 app.post("/api/properties", (req, res) => {
-  const { name } = req.body;
+  const { name, ownerName, ownerPhone } = req.body;
   if (!name || !name.trim()) {
     return res.status(400).json({ error: "El nombre del inmueble es requerido." });
   }
@@ -473,6 +499,8 @@ app.post("/api/properties", (req, res) => {
   const newProperty = {
     id: "prop_" + Math.random().toString(36).substr(2, 9),
     name: cleanName,
+    ownerName: (ownerName || "").trim(),
+    ownerPhone: (ownerPhone || "").trim(),
     createdAt: new Date().toISOString()
   };
 
@@ -486,7 +514,7 @@ app.post("/api/properties", (req, res) => {
 // Update property
 app.put("/api/properties/:id", (req, res) => {
   const { id } = req.params;
-  const { name } = req.body;
+  const { name, ownerName, ownerPhone } = req.body;
 
   if (!name || !name.trim()) {
     return res.status(400).json({ error: "El nombre del inmueble es requerido." });
@@ -507,6 +535,8 @@ app.put("/api/properties/:id", (req, res) => {
 
   const oldName = db.properties[propIndex].name;
   db.properties[propIndex].name = cleanName;
+  db.properties[propIndex].ownerName = (ownerName || "").trim();
+  db.properties[propIndex].ownerPhone = (ownerPhone || "").trim();
 
   // Propagate name change to associated entities
   if (db.users) {
