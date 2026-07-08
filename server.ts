@@ -33,7 +33,7 @@ const __filename = resolvedFilename;
 const __dirname = resolvedFilename ? path.dirname(resolvedFilename) : (typeof __dirname !== "undefined" ? __dirname : "");
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // Body parsing with supportive payload limits for base64 receipts
 app.use(express.json({ limit: "15mb" }));
