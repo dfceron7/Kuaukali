@@ -94,7 +94,7 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
   };
 
   const handleStartEdit = (user: User) => {
-    if (user.username === "diego7ceron@gmail.com" || user.email === "diego7ceron@gmail.com") {
+    if (user.id === "u_admin") {
       alert("No se permite editar al Administrador de Sistema principal.");
       return;
     }
@@ -158,7 +158,7 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
       return;
     }
 
-    if (userToDelete.username === "diego7ceron@gmail.com" || userToDelete.email === "diego7ceron@gmail.com") {
+    if (userToDelete.id === "u_admin") {
       alert("No se permite eliminar al Administrador de Sistema principal.");
       return;
     }
@@ -193,7 +193,7 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
     setError(null);
     setSuccess(null);
 
-    if (resettingUser.username === "diego7ceron@gmail.com" || resettingUser.email === "diego7ceron@gmail.com") {
+    if (resettingUser.id === "u_admin") {
       alert("No se permite restablecer clave temporal para el Administrador de Sistema principal.");
       return;
     }
@@ -231,7 +231,7 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
       return;
     }
 
-    if (userToToggle.username === "diego7ceron@gmail.com" || userToToggle.email === "diego7ceron@gmail.com") {
+    if (userToToggle.id === "u_admin") {
       alert("No se permite inactivar al Administrador de Sistema principal.");
       return;
     }
@@ -504,7 +504,7 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
                     <td className="px-6 py-4 font-mono text-xs">{u.email}</td>
                     <td className="px-6 py-4">
                       <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider ${
-                        u.username === "diego7ceron@gmail.com" || u.email === "diego7ceron@gmail.com"
+                        u.id === "u_admin"
                           ? "bg-amber-500 text-slate-950 ring-1 ring-amber-400"
                           : u.role === "admin"
                           ? "bg-amber-100 text-amber-900"
@@ -512,7 +512,7 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
                           ? "bg-teal-100 text-teal-900"
                           : "bg-slate-100 text-slate-800"
                       }`}>
-                        {u.username === "diego7ceron@gmail.com" || u.email === "diego7ceron@gmail.com" ? "System Admin" : u.role === "admin" ? "Administrador" : u.role === "vigilante" ? "Vigilante" : "Residente"}
+                        {u.id === "u_admin" ? "System Admin" : u.role === "admin" ? "Administrador" : u.role === "vigilante" ? "Vigilante" : "Residente"}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -527,7 +527,7 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end space-x-2">
                         {/* Edit Button */}
-                        {u.username === "diego7ceron@gmail.com" || u.email === "diego7ceron@gmail.com" ? (
+                        {u.id === "u_admin" ? (
                           <button
                             id={`btn-edit-user-${u.id}`}
                             disabled
@@ -550,7 +550,7 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
                         )}
 
                         {/* Reset Password Button */}
-                        {u.username === "diego7ceron@gmail.com" || u.email === "diego7ceron@gmail.com" ? (
+                        {u.id === "u_admin" ? (
                           <button
                             id={`btn-reset-password-${u.id}`}
                             disabled
@@ -576,9 +576,9 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
                         <button
                           id={`btn-toggle-active-${u.id}`}
                           onClick={() => handleToggleActive(u)}
-                          disabled={u.id === currentUser.id || u.username === "diego7ceron@gmail.com" || u.email === "diego7ceron@gmail.com"}
+                          disabled={u.id === currentUser.id || u.id === "u_admin"}
                           className={`text-[10px] font-bold px-2 py-1.5 rounded transition-colors select-none ${
-                            u.id === currentUser.id || u.username === "diego7ceron@gmail.com" || u.email === "diego7ceron@gmail.com"
+                            u.id === currentUser.id || u.id === "u_admin"
                               ? "text-slate-300 bg-slate-150 cursor-not-allowed"
                               : u.isActive !== false
                               ? "bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 cursor-pointer"
@@ -592,13 +592,13 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
                         <button
                           id={`btn-delete-user-${u.id}`}
                           onClick={() => handleDeleteUser(u)}
-                          disabled={u.id === currentUser.id || u.username === "diego7ceron@gmail.com" || u.email === "diego7ceron@gmail.com"}
+                          disabled={u.id === currentUser.id || u.id === "u_admin"}
                           className={`p-1.5 rounded-lg transition-colors flex items-center ${
-                            u.id === currentUser.id || u.username === "diego7ceron@gmail.com" || u.email === "diego7ceron@gmail.com"
+                            u.id === currentUser.id || u.id === "u_admin"
                               ? "text-slate-300 bg-slate-100 cursor-not-allowed opacity-50"
                               : "bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 cursor-pointer"
                           }`}
-                          title={u.username === "diego7ceron@gmail.com" || u.email === "diego7ceron@gmail.com" ? "El Administrador de Sistema principal no se puede eliminar" : "Eliminar definitivamente"}
+                          title={u.id === "u_admin" ? "El Administrador de Sistema principal no se puede eliminar" : "Eliminar definitivamente"}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>

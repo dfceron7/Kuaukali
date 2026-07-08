@@ -347,7 +347,7 @@ app.patch("/api/admin/users/:id/toggle-active", (req, res) => {
     return res.status(404).json({ error: "Usuario no encontrado." });
   }
 
-  if (user.username === "diego7ceron@gmail.com" || user.email === "diego7ceron@gmail.com") {
+  if (user.id === "u_admin") {
     return res.status(403).json({ error: "No se permite inactivar al Administrador de Sistema principal." });
   }
 
@@ -368,7 +368,7 @@ app.put("/api/admin/users/:id", (req, res) => {
     return res.status(404).json({ error: "Usuario no encontrado." });
   }
 
-  if (user.username === "diego7ceron@gmail.com" || user.email === "diego7ceron@gmail.com") {
+  if (user.id === "u_admin") {
     return res.status(403).json({ error: "No se permite editar al Administrador de Sistema principal." });
   }
 
@@ -405,7 +405,7 @@ app.delete("/api/admin/users/:id", (req, res) => {
   }
 
   const user = db.users[userIndex];
-  if (user.username === "diego7ceron@gmail.com" || user.email === "diego7ceron@gmail.com") {
+  if (user.id === "u_admin") {
     return res.status(403).json({ error: "No se permite eliminar al Administrador de Sistema principal." });
   }
 
@@ -429,7 +429,7 @@ app.post("/api/admin/users/:id/reset-password", (req, res) => {
     return res.status(404).json({ error: "Usuario no encontrado." });
   }
 
-  if (user.username === "diego7ceron@gmail.com" || user.email === "diego7ceron@gmail.com") {
+  if (user.id === "u_admin") {
     return res.status(403).json({ error: "No se permite restablecer clave temporal para el Administrador de Sistema principal." });
   }
 
