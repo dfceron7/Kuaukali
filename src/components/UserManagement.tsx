@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from "react";
 import { User } from "../types";
-import { User as UserIcon, Shield, Mail, Home, Key, Trash2, ToggleLeft, ToggleRight, UserPlus, Search, Edit2, X } from "lucide-react";
+import { User as UserIcon, Shield, Mail, Home, Key, Trash2, ToggleLeft, ToggleRight, UserPlus, Search, Edit2, X, Eye, EyeOff } from "lucide-react";
 
 interface UserManagementProps {
   currentUser: User;
@@ -31,6 +31,10 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
 
   // Filter/Search state
   const [searchTerm, setSearchTerm] = useState<string>("");
+
+  // Password visibility states
+  const [showAdminPassword, setShowAdminPassword] = useState<boolean>(false);
+  const [showResetPassword, setShowResetPassword] = useState<boolean>(false);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -90,6 +94,10 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
   };
 
   const handleStartEdit = (user: User) => {
+    if (user.username === "diego7ceron@gmail.com" || user.email === "diego7ceron@gmail.com") {
+      alert("No se permite editar al Administrador de Sistema principal.");
+      return;
+    }
     setEditingUser(user);
     setUsername(user.username);
     setHouse(user.house);
@@ -150,6 +158,11 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
       return;
     }
 
+    if (userToDelete.username === "diego7ceron@gmail.com" || userToDelete.email === "diego7ceron@gmail.com") {
+      alert("No se permite eliminar al Administrador de Sistema principal.");
+      return;
+    }
+
     const confirmDelete = window.confirm(`¿Está seguro de que desea eliminar DEFINITIVAMENTE al usuario "${userToDelete.username}"? Esta acción borrará su cuenta para siempre.`);
     if (!confirmDelete) return;
 
@@ -179,6 +192,11 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
     if (!resettingUser) return;
     setError(null);
     setSuccess(null);
+
+    if (resettingUser.username === "diego7ceron@gmail.com" || resettingUser.email === "diego7ceron@gmail.com") {
+      alert("No se permite restablecer clave temporal para el Administrador de Sistema principal.");
+      return;
+    }
 
     if (!tempPasswordInput || tempPasswordInput.trim().length < 3) {
       alert("La contraseña temporal debe tener al menos 3 caracteres.");
@@ -210,6 +228,11 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
   const handleToggleActive = async (userToToggle: User) => {
     if (userToToggle.id === currentUser.id) {
       alert("No puedes inactivar tu propia cuenta de administrador en sesión.");
+      return;
+    }
+
+    if (userToToggle.username === "diego7ceron@gmail.com" || userToToggle.email === "diego7ceron@gmail.com") {
+      alert("No se permite inactivar al Administrador de Sistema principal.");
       return;
     }
 
@@ -293,13 +316,21 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
                 <Key className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                 <input
                   id="admin-create-password"
-                  type="password"
+                  type={showAdminPassword ? "text" : "password"}
                   placeholder={editingUser ? "Dejar en blanco para no cambiar" : "ej. ClaveRes492"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full text-xs pl-10 pr-3 py-2.5 rounded-lg border border-slate-300 bg-slate-50 focus:bg-white focus:outline-hidden focus:border-amber-500 text-slate-900"
+                  className="w-full text-xs pl-10 pr-10 py-2.5 rounded-lg border border-slate-300 bg-slate-50 focus:bg-white focus:outline-hidden focus:border-amber-500 text-slate-900"
                   required={!editingUser}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowAdminPassword(!showAdminPassword)}
+                  className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 focus:outline-hidden cursor-pointer"
+                  title={showAdminPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                >
+                  {showAdminPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
               </div>
               <p className="text-[10px] text-slate-400 mt-1">
                 {editingUser ? "Deje vacío para mantener la contraseña actual." : "Mínimo 3 caracteres recomendados."}
@@ -473,13 +504,15 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
                     <td className="px-6 py-4 font-mono text-xs">{u.email}</td>
                     <td className="px-6 py-4">
                       <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider ${
-                        u.role === "admin"
+                        u.username === "diego7ceron@gmail.com" || u.email === "diego7ceron@gmail.com"
+                          ? "bg-amber-500 text-slate-950 ring-1 ring-amber-400"
+                          : u.role === "admin"
                           ? "bg-amber-100 text-amber-900"
                           : u.role === "vigilante"
                           ? "bg-teal-100 text-teal-900"
                           : "bg-slate-100 text-slate-800"
                       }`}>
-                        {u.role === "admin" ? "Administrador" : u.role === "vigilante" ? "Vigilante" : "Residente"}
+                        {u.username === "diego7ceron@gmail.com" || u.email === "diego7ceron@gmail.com" ? "System Admin" : u.role === "admin" ? "Administrador" : u.role === "vigilante" ? "Vigilante" : "Residente"}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -494,34 +527,58 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end space-x-2">
                         {/* Edit Button */}
-                        <button
-                          id={`btn-edit-user-${u.id}`}
-                          onClick={() => handleStartEdit(u)}
-                          className="bg-slate-100 hover:bg-slate-200 text-slate-700 p-1.5 rounded-lg transition-colors cursor-pointer border border-slate-200 flex items-center space-x-1"
-                          title="Editar detalles del usuario"
-                        >
-                          <Edit2 className="h-3.5 w-3.5" />
-                          <span className="text-[10px] font-bold hidden lg:inline">Editar</span>
-                        </button>
+                        {u.username === "diego7ceron@gmail.com" || u.email === "diego7ceron@gmail.com" ? (
+                          <button
+                            id={`btn-edit-user-${u.id}`}
+                            disabled
+                            className="bg-slate-50 text-slate-350 p-1.5 rounded-lg border border-slate-100 flex items-center space-x-1 cursor-not-allowed opacity-50"
+                            title="El Administrador de Sistema principal no se puede editar"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                            <span className="text-[10px] font-bold hidden lg:inline">Editar</span>
+                          </button>
+                        ) : (
+                          <button
+                            id={`btn-edit-user-${u.id}`}
+                            onClick={() => handleStartEdit(u)}
+                            className="bg-slate-100 hover:bg-slate-200 text-slate-700 p-1.5 rounded-lg transition-colors cursor-pointer border border-slate-200 flex items-center space-x-1"
+                            title="Editar detalles del usuario"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                            <span className="text-[10px] font-bold hidden lg:inline">Editar</span>
+                          </button>
+                        )}
 
                         {/* Reset Password Button */}
-                        <button
-                          id={`btn-reset-password-${u.id}`}
-                          onClick={() => { setResettingUser(u); setTempPasswordInput(""); }}
-                          className="bg-amber-50 hover:bg-amber-100 text-amber-800 p-1.5 rounded-lg transition-colors cursor-pointer border border-amber-200 flex items-center space-x-1"
-                          title="Restablecer contraseña temporal"
-                        >
-                          <Key className="h-3.5 w-3.5" />
-                          <span className="text-[10px] font-bold hidden lg:inline">Clave Temp</span>
-                        </button>
+                        {u.username === "diego7ceron@gmail.com" || u.email === "diego7ceron@gmail.com" ? (
+                          <button
+                            id={`btn-reset-password-${u.id}`}
+                            disabled
+                            className="bg-slate-50 text-slate-350 p-1.5 rounded-lg border border-slate-100 flex items-center space-x-1 cursor-not-allowed opacity-50"
+                            title="No se puede restablecer clave temporal para el Administrador de Sistema principal"
+                          >
+                            <Key className="h-3.5 w-3.5" />
+                            <span className="text-[10px] font-bold hidden lg:inline">Clave Temp</span>
+                          </button>
+                        ) : (
+                          <button
+                            id={`btn-reset-password-${u.id}`}
+                            onClick={() => { setResettingUser(u); setTempPasswordInput(""); }}
+                            className="bg-amber-50 hover:bg-amber-100 text-amber-800 p-1.5 rounded-lg transition-colors cursor-pointer border border-amber-200 flex items-center space-x-1"
+                            title="Restablecer contraseña temporal"
+                          >
+                            <Key className="h-3.5 w-3.5" />
+                            <span className="text-[10px] font-bold hidden lg:inline">Clave Temp</span>
+                          </button>
+                        )}
 
                         {/* Toggle Active Button */}
                         <button
                           id={`btn-toggle-active-${u.id}`}
                           onClick={() => handleToggleActive(u)}
-                          disabled={u.id === currentUser.id}
+                          disabled={u.id === currentUser.id || u.username === "diego7ceron@gmail.com" || u.email === "diego7ceron@gmail.com"}
                           className={`text-[10px] font-bold px-2 py-1.5 rounded transition-colors select-none ${
-                            u.id === currentUser.id
+                            u.id === currentUser.id || u.username === "diego7ceron@gmail.com" || u.email === "diego7ceron@gmail.com"
                               ? "text-slate-300 bg-slate-150 cursor-not-allowed"
                               : u.isActive !== false
                               ? "bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 cursor-pointer"
@@ -535,13 +592,13 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
                         <button
                           id={`btn-delete-user-${u.id}`}
                           onClick={() => handleDeleteUser(u)}
-                          disabled={u.id === currentUser.id}
+                          disabled={u.id === currentUser.id || u.username === "diego7ceron@gmail.com" || u.email === "diego7ceron@gmail.com"}
                           className={`p-1.5 rounded-lg transition-colors flex items-center ${
-                            u.id === currentUser.id
-                              ? "text-slate-300 bg-slate-100 cursor-not-allowed"
+                            u.id === currentUser.id || u.username === "diego7ceron@gmail.com" || u.email === "diego7ceron@gmail.com"
+                              ? "text-slate-300 bg-slate-100 cursor-not-allowed opacity-50"
                               : "bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 cursor-pointer"
                           }`}
-                          title="Eliminar definitivamente"
+                          title={u.username === "diego7ceron@gmail.com" || u.email === "diego7ceron@gmail.com" ? "El Administrador de Sistema principal no se puede eliminar" : "Eliminar definitivamente"}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -581,13 +638,21 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
                 <div className="relative">
                   <Key className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                   <input
-                    type="text"
+                    type={showResetPassword ? "text" : "password"}
                     required
                     placeholder="ej. Temp123"
                     value={tempPasswordInput}
                     onChange={(e) => setTempPasswordInput(e.target.value)}
-                    className="w-full text-xs pl-10 pr-3 py-2.5 rounded-lg border border-slate-300 focus:outline-hidden focus:border-amber-500 text-slate-900"
+                    className="w-full text-xs pl-10 pr-10 py-2.5 rounded-lg border border-slate-300 focus:outline-hidden focus:border-amber-500 text-slate-900"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowResetPassword(!showResetPassword)}
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 focus:outline-hidden cursor-pointer"
+                    title={showResetPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                  >
+                    {showResetPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
                 <p className="text-[10px] text-slate-400 mt-1">Mínimo 3 caracteres.</p>
               </div>

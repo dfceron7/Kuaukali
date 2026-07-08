@@ -30,7 +30,9 @@ import {
   X,
   Smartphone,
   Download,
-  Share
+  Share,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -514,6 +516,11 @@ export default function App() {
   const [tempPasswordSuccess, setTempPasswordSuccess] = useState<string | null>(null);
   const [tempPasswordLoading, setTempPasswordLoading] = useState<boolean>(false);
 
+  // Password visibility states
+  const [showLoginPassword, setShowLoginPassword] = useState<boolean>(false);
+  const [showNewPassword, setShowNewPassword] = useState<boolean>(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
+
   const handleChangeTemporaryPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setTempPasswordError(null);
@@ -651,13 +658,21 @@ export default function App() {
                       <Lock className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                       <input
                         id="login-password"
-                        type="password"
+                        type={showLoginPassword ? "text" : "password"}
                         placeholder="••••••••"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="w-full text-xs pl-10 pr-3 py-2.5 rounded-lg border border-slate-300 bg-slate-50 focus:bg-white focus:outline-hidden focus:border-amber-500 text-slate-900"
+                        className="w-full text-xs pl-10 pr-10 py-2.5 rounded-lg border border-slate-300 bg-slate-50 focus:bg-white focus:outline-hidden focus:border-amber-500 text-slate-900"
                         required
                       />
+                      <button
+                        type="button"
+                        onClick={() => setShowLoginPassword(!showLoginPassword)}
+                        className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 focus:outline-hidden cursor-pointer"
+                        title={showLoginPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                      >
+                        {showLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
                     </div>
                   </div>
 
@@ -708,45 +723,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* Convenient demo bypass cards to simplify assessment */}
-            <div className="mt-6 bg-slate-800 rounded-xl p-5 text-white border border-slate-700 shadow-sm space-y-3">
-              <span className="text-[10px] font-mono uppercase text-amber-500 tracking-widest font-bold flex items-center space-x-1">
-                <Key className="h-3 w-3" />
-                <span>Credenciales Rápidas Demo</span>
-              </span>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                <button
-                  id="btn-demo-resident"
-                  onClick={() => bypassLogin("casa101", "101")}
-                  className="bg-slate-750 hover:bg-slate-700 hover:border-amber-500/50 p-2.5 rounded-lg border border-slate-700 text-left transition-all"
-                >
-                  <strong className="block text-sm text-slate-200">Rol Residente</strong>
-                  <span className="text-[10px] text-slate-400 block font-mono">Usuario: casa101</span>
-                  <span className="text-[10px] text-slate-400 block font-mono">Clave: 101</span>
-                </button>
 
-                <button
-                  id="btn-demo-guard"
-                  onClick={() => bypassLogin("vigilante1", "v1")}
-                  className="bg-slate-750 hover:bg-slate-700 hover:border-teal-500/50 p-2.5 rounded-lg border border-slate-700 text-left transition-all"
-                >
-                  <strong className="block text-sm text-slate-200">Rol Vigilante</strong>
-                  <span className="text-[10px] text-slate-400 block font-mono">Usuario: vigilante1</span>
-                  <span className="text-[10px] text-slate-400 block font-mono">Clave: v1</span>
-                </button>
-
-                <button
-                  id="btn-demo-admin"
-                  onClick={() => bypassLogin("admin", "123")}
-                  className="bg-slate-750 hover:bg-slate-700 hover:border-amber-500/50 p-2.5 rounded-lg border border-slate-700 text-left transition-all"
-                >
-                  <strong className="block text-sm text-slate-200">Rol Administrador</strong>
-                  <span className="text-[10px] text-slate-400 block font-mono">Usuario: admin</span>
-                  <span className="text-[10px] text-slate-400 block font-mono">Clave: 123</span>
-                </button>
-              </div>
-            </div>
 
           </div>
         ) : currentUser.isTemporaryPassword ? (
@@ -784,13 +761,21 @@ export default function App() {
                   <div className="relative">
                     <Lock className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                     <input
-                      type="password"
+                      type={showNewPassword ? "text" : "password"}
                       placeholder="Mínimo 3 caracteres"
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
-                      className="w-full text-xs pl-10 pr-3 py-2.5 rounded-lg border border-slate-300 focus:outline-hidden focus:border-amber-500 text-slate-900"
+                      className="w-full text-xs pl-10 pr-10 py-2.5 rounded-lg border border-slate-300 focus:outline-hidden focus:border-amber-500 text-slate-900"
                       required
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 focus:outline-hidden cursor-pointer"
+                      title={showNewPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                    >
+                      {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
                   </div>
                 </div>
 
@@ -801,13 +786,21 @@ export default function App() {
                   <div className="relative">
                     <Lock className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                     <input
-                      type="password"
+                      type={showConfirmPassword ? "text" : "password"}
                       placeholder="Repita la contraseña nueva"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="w-full text-xs pl-10 pr-3 py-2.5 rounded-lg border border-slate-300 focus:outline-hidden focus:border-amber-500 text-slate-900"
+                      className="w-full text-xs pl-10 pr-10 py-2.5 rounded-lg border border-slate-300 focus:outline-hidden focus:border-amber-500 text-slate-900"
                       required
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600 focus:outline-hidden cursor-pointer"
+                      title={showConfirmPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                    >
+                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
                   </div>
                 </div>
 

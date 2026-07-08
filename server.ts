@@ -22,18 +22,13 @@ try {
   if (typeof import.meta !== "undefined" && import.meta && import.meta.url) {
     // @ts-ignore
     resolvedFilename = fileURLToPath(import.meta.url);
-  } else {
-    resolvedFilename = typeof __filename !== "undefined" ? __filename : "";
   }
 } catch (e) {
-  resolvedFilename = typeof __filename !== "undefined" ? __filename : "";
+  // Ignored
 }
 
-const __filename = resolvedFilename;
-const __dirname = resolvedFilename ? path.dirname(resolvedFilename) : (typeof __dirname !== "undefined" ? __dirname : "");
-
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 // Body parsing with supportive payload limits for base64 receipts
 app.use(express.json({ limit: "15mb" }));
@@ -53,47 +48,11 @@ interface DBStructure {
 // Seed Data
 const defaultDB: DBStructure = {
   users: [
-    { id: "u1", username: "admin", password: "123", role: "admin", house: "Administración", email: "admin@kuaukali.com", isActive: true },
-    { id: "u2", username: "casa101", password: "101", role: "resident", house: "Casa 101", email: "casa101@kuaukali.com", isActive: true },
-    { id: "u3", username: "casa204", password: "204", role: "resident", house: "Casa 204", email: "casa204@kuaukali.com", isActive: true },
-    { id: "u4", username: "casa305", password: "305", role: "resident", house: "Casa 305", email: "casa305@kuaukali.com", isActive: true },
-    { id: "u5", username: "vigilante1", password: "v1", role: "vigilante", house: "Caseta de Vigilancia", email: "vigilancia@kuaukali.com", isActive: true }
+    { id: "u_admin", username: "diego7ceron@gmail.com", password: "Kuaukali007*", role: "admin", house: "Administración", email: "diego7ceron@gmail.com", isActive: true }
   ],
-  reservations: [
-    {
-      id: "res1",
-      userId: "u2",
-      userName: "casa101",
-      house: "Casa 101",
-      userEmail: "casa101@kuaukali.com",
-      date: new Date().toISOString().split("T")[0], // Today
-      startTime: "10:00",
-      endTime: "14:00",
-      durationHours: 4,
-      guestsCount: 25,
-      proofFileName: "transferencia_101.jpg",
-      proofFileUrl: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='300' viewBox='0 0 400 300'><rect width='400' height='300' fill='%23e2e8f0'/><text x='50%25' y='50%25' font-family='sans-serif' font-size='16' text-anchor='middle' fill='%2364748b'>Comprobante de Transferencia: Ref #1092301</text></svg>",
-      status: "approved",
-      createdAt: new Date(Date.now() - 3600000 * 24).toISOString()
-    },
-    {
-      id: "res2",
-      userId: "u3",
-      userName: "casa204",
-      house: "Casa 204",
-      userEmail: "casa204@kuaukali.com",
-      date: new Date(Date.now() + 3600000 * 24).toISOString().split("T")[0], // Tomorrow
-      startTime: "16:00",
-      endTime: "20:00",
-      durationHours: 4,
-      guestsCount: 40,
-      proofFileName: "comprobante_banco.jpg",
-      proofFileUrl: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='300' viewBox='0 0 400 300'><rect width='400' height='300' fill='%23cbd5e1'/><text x='50%25' y='50%25' font-family='sans-serif' font-size='15' text-anchor='middle' fill='%23475569'>Transferencia Exitosa - ClubHouse S.L. - 250 USD</text></svg>",
-      status: "pending",
-      createdAt: new Date().toISOString()
-    }
-  ],
+  reservations: [],
   emails: [],
+  visitorPasses: [],
   payments: []
 };
 
@@ -181,37 +140,104 @@ async function syncFromFirestoreOnBoot() {
   console.log("🔄 Iniciando sincronización de arranque con Firestore...");
   try {
     const fireUsers = await loadFromFirestore("users");
-    const fireReservations = await loadFromFirestore("reservations");
-    const fireEmails = await loadFromFirestore("emails");
-    const firePasses = await loadFromFirestore("visitorPasses");
-    const firePayments = await loadFromFirestore("payments");
-
-    let dbHasData = false;
     
-    if (
-      (fireUsers && fireUsers.length > 0) ||
-      (fireReservations && fireReservations.length > 0) ||
-      (fireEmails && fireEmails.length > 0) ||
-      (firePasses && firePasses.length > 0) ||
-      (firePayments && firePayments.length > 0)
-    ) {
-      dbHasData = true;
-    }
+    // Detect if we need a fresh cleanup/reset of dummy data
+    const hasOldUsers = fireUsers && fireUsers.some(u => 
+      u.username === "admin" || 
+      u.username === "casa101" || 
+      u.username === "casa204" || 
+      u.username === "casa305" || 
+      u.username === "vigilante1"
+    );
+    const isNewAdminMissing = !fireUsers || !fireUsers.some(u => u.username === "diego7ceron@gmail.com");
+    const needsReset = hasOldUsers || isNewAdminMissing;
 
-    if (dbHasData) {
-      console.log("📈 Se encontraron datos en Firestore. Sincronizando...");
+    if (needsReset) {
+      console.log("🧹 [MIGRACIÓN / LIMPIEZA] Se detectaron datos antiguos de prueba. Procediendo a limpiar Firestore...");
+      
+      // 1. Delete old users from Firestore
+      if (fireUsers && fireUsers.length > 0) {
+        for (const u of fireUsers) {
+          await deleteFromFirestore("users", u.id);
+        }
+      }
+      const oldUserIds = ["u1", "u2", "u3", "u4", "u5"];
+      for (const id of oldUserIds) {
+        await deleteFromFirestore("users", id);
+      }
+
+      // 2. Delete other collections
+      const fireReservations = await loadFromFirestore("reservations");
+      if (fireReservations && fireReservations.length > 0) {
+        for (const r of fireReservations) {
+          await deleteFromFirestore("reservations", r.id);
+        }
+      }
+      const oldResIds = ["res1", "res2"];
+      for (const id of oldResIds) {
+        await deleteFromFirestore("reservations", id);
+      }
+
+      const fireEmails = await loadFromFirestore("emails");
+      if (fireEmails && fireEmails.length > 0) {
+        for (const e of fireEmails) {
+          await deleteFromFirestore("emails", e.id);
+        }
+      }
+
+      const firePasses = await loadFromFirestore("visitorPasses");
+      if (firePasses && firePasses.length > 0) {
+        for (const p of firePasses) {
+          await deleteFromFirestore("visitorPasses", p.id);
+        }
+      }
+
+      const firePayments = await loadFromFirestore("payments");
+      if (firePayments && firePayments.length > 0) {
+        for (const py of firePayments) {
+          await deleteFromFirestore("payments", py.id);
+        }
+      }
+      const oldPayIds = ["pay1", "pay2", "pay3"];
+      for (const id of oldPayIds) {
+        await deleteFromFirestore("payments", id);
+      }
+
+      // 3. Set clean state
+      db.users = [
+        { 
+          id: "u_admin", 
+          username: "diego7ceron@gmail.com", 
+          password: "Kuaukali007*", 
+          role: "admin", 
+          house: "Administración", 
+          email: "diego7ceron@gmail.com", 
+          isActive: true 
+        }
+      ];
+      db.reservations = [];
+      db.emails = [];
+      db.visitorPasses = [];
+      db.payments = [];
+
+      fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), "utf-8");
+      await saveToFirestore("users", "u_admin", db.users[0]);
+      console.log("✅ [MIGRACIÓN / LIMPIEZA] Firestore purgado y sembrado con administrador único.");
+    } else {
+      console.log("📈 Se encontraron datos limpios en Firestore. Sincronizando...");
+      const fireReservations = await loadFromFirestore("reservations");
+      const fireEmails = await loadFromFirestore("emails");
+      const firePasses = await loadFromFirestore("visitorPasses");
+      const firePayments = await loadFromFirestore("payments");
+
       if (fireUsers && fireUsers.length > 0) db.users = fireUsers;
-      if (fireReservations && fireReservations.length > 0) db.reservations = fireReservations;
-      if (fireEmails && fireEmails.length > 0) db.emails = fireEmails;
-      if (firePasses && firePasses.length > 0) db.visitorPasses = firePasses;
-      if (firePayments && firePayments.length > 0) db.payments = firePayments;
+      db.reservations = fireReservations || [];
+      db.emails = fireEmails || [];
+      db.visitorPasses = firePasses || [];
+      db.payments = firePayments || [];
       
       fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), "utf-8");
-      console.log("✅ Base de datos local sincronizada con el servidor en la nube.");
-    } else {
-      console.log("🌱 Firestore vacío. Subiendo datos iniciales...");
-      await syncCollectionsToFirestore(db);
-      console.log("✅ Datos iniciales sembrados correctamente en Firestore.");
+      console.log("✅ Base de datos local sincronizada.");
     }
   } catch (error) {
     console.warn("⚠️ Error en sincronización de arranque con Firestore:", error);
@@ -222,89 +248,6 @@ async function syncFromFirestoreOnBoot() {
 syncFromFirestoreOnBoot().catch((err) => {
   console.warn("Boot synchronization failed:", err);
 });
-
-if (!db.payments) {
-  db.payments = [
-    {
-      id: "pay1",
-      userId: "u2",
-      userName: "casa101",
-      house: "Casa 101",
-      userEmail: "casa101@kuaukali.com",
-      months: ["Enero 2026", "Febrero 2026", "Marzo 2026", "Abril 2026", "Mayo 2026"],
-      amount: 250,
-      correlative: "REC-2026-0001",
-      passCode: "VP-58291",
-      transactionReference: "TXN-83921029",
-      proofFileName: "pago_mayo.png",
-      proofFileUrl: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='300' viewBox='0 0 400 300'><rect width='400' height='300' fill='%23cbd5e1'/><text x='50%25' y='50%25' font-family='sans-serif' font-size='14' text-anchor='middle' fill='%23334155'>Transferencia Bancaria: REC-2026-0001 (Jan-May)</text></svg>",
-      status: "approved",
-      createdAt: "2026-05-28T10:15:30.000Z",
-      processedAt: "2026-05-28T14:30:00.000Z"
-    },
-    {
-      id: "pay2",
-      userId: "u3",
-      userName: "casa204",
-      house: "Casa 204",
-      userEmail: "casa204@kuaukali.com",
-      months: ["Enero 2026", "Febrero 2026", "Marzo 2026"],
-      amount: 150,
-      correlative: "REC-2026-0002",
-      passCode: "VP-48201",
-      transactionReference: "TXN-10294819",
-      proofFileName: "pago_marzo.png",
-      proofFileUrl: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='300' viewBox='0 0 400 300'><rect width='400' height='300' fill='%23cbd5e1'/><text x='50%25' y='50%25' font-family='sans-serif' font-size='14' text-anchor='middle' fill='%23334155'>Transferencia Bancaria: REC-2026-0002 (Jan-Mar)</text></svg>",
-      status: "approved",
-      createdAt: "2026-03-25T11:00:00.000Z",
-      processedAt: "2026-03-25T15:10:00.000Z"
-    },
-    {
-      id: "pay3",
-      userId: "u3",
-      userName: "casa204",
-      house: "Casa 204",
-      userEmail: "casa204@kuaukali.com",
-      months: ["Abril 2026", "Mayo 2026"],
-      amount: 100,
-      correlative: "REC-2026-0003",
-      passCode: "VP-93210",
-      transactionReference: "TXN-49201948",
-      proofFileName: "transfer_abril_mayo.png",
-      proofFileUrl: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='300' viewBox='0 0 400 300'><rect width='400' height='300' fill='%23cbd5e1'/><text x='50%25' y='50%25' font-family='sans-serif' font-size='14' text-anchor='middle' fill='%23334155'>Transferencia Bancaria: REC-2026-0003 (Apr-May)</text></svg>",
-      status: "pending",
-      createdAt: new Date().toISOString()
-    }
-  ];
-  saveDB(db);
-}
-
-// Ensure at least one active vigilante exists
-const hasVigilante = db.users.some(u => u.role === "vigilante");
-if (!hasVigilante) {
-  db.users.push({
-    id: "u5",
-    username: "vigilante1",
-    password: "v1",
-    role: "vigilante",
-    house: "Caseta de Vigilancia",
-    email: "vigilancia@kuaukali.com",
-    isActive: true
-  });
-  saveDB(db);
-}
-
-// Guarantee all existing users have isActive state defined (retrocompatible check)
-let modified = false;
-db.users.forEach((u) => {
-  if (u.isActive === undefined) {
-    u.isActive = true;
-    modified = true;
-  }
-});
-if (modified) {
-  saveDB(db);
-}
 
 // API Routes
 
@@ -404,6 +347,10 @@ app.patch("/api/admin/users/:id/toggle-active", (req, res) => {
     return res.status(404).json({ error: "Usuario no encontrado." });
   }
 
+  if (user.username === "diego7ceron@gmail.com" || user.email === "diego7ceron@gmail.com") {
+    return res.status(403).json({ error: "No se permite inactivar al Administrador de Sistema principal." });
+  }
+
   user.isActive = !user.isActive;
   saveDB(db);
 
@@ -419,6 +366,10 @@ app.put("/api/admin/users/:id", (req, res) => {
   const user = db.users.find((u) => u.id === id);
   if (!user) {
     return res.status(404).json({ error: "Usuario no encontrado." });
+  }
+
+  if (user.username === "diego7ceron@gmail.com" || user.email === "diego7ceron@gmail.com") {
+    return res.status(403).json({ error: "No se permite editar al Administrador de Sistema principal." });
   }
 
   if (username && username.toLowerCase() !== user.username.toLowerCase()) {
@@ -453,6 +404,11 @@ app.delete("/api/admin/users/:id", (req, res) => {
     return res.status(404).json({ error: "Usuario no encontrado." });
   }
 
+  const user = db.users[userIndex];
+  if (user.username === "diego7ceron@gmail.com" || user.email === "diego7ceron@gmail.com") {
+    return res.status(403).json({ error: "No se permite eliminar al Administrador de Sistema principal." });
+  }
+
   db.users.splice(userIndex, 1);
   saveDB(db);
 
@@ -471,6 +427,10 @@ app.post("/api/admin/users/:id/reset-password", (req, res) => {
   const user = db.users.find((u) => u.id === id);
   if (!user) {
     return res.status(404).json({ error: "Usuario no encontrado." });
+  }
+
+  if (user.username === "diego7ceron@gmail.com" || user.email === "diego7ceron@gmail.com") {
+    return res.status(403).json({ error: "No se permite restablecer clave temporal para el Administrador de Sistema principal." });
   }
 
   user.password = tempPassword.trim();

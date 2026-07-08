@@ -67,7 +67,12 @@ export default function Header({ currentUser, onLogout, activeTab, setActiveTab 
                     {currentUser.username}
                   </span>
                   <span className="text-[10px] font-mono text-slate-400 flex items-center justify-end space-x-1">
-                    {currentUser.role === "admin" ? (
+                    {currentUser.username === "diego7ceron@gmail.com" || currentUser.email === "diego7ceron@gmail.com" ? (
+                      <>
+                        <ShieldAlert className="h-2.5 w-2.5 text-amber-400 inline" />
+                        <span className="text-amber-400 font-bold">System Admin</span>
+                      </>
+                    ) : currentUser.role === "admin" ? (
                       <>
                         <ShieldAlert className="h-2.5 w-2.5 text-rose-400 inline" />
                         <span className="text-rose-400">Administrador</span>
@@ -126,8 +131,8 @@ export default function Header({ currentUser, onLogout, activeTab, setActiveTab 
               <p className="text-xs text-slate-400">Usuario Conectado:</p>
               <p className="text-sm font-bold text-white">{currentUser.username}</p>
             </div>
-            <span className="text-[10px] font-mono bg-slate-800 px-2.5 py-1 rounded-md text-slate-300 border border-slate-700">
-              {currentUser.role === "admin" ? "Administrador" : currentUser.house}
+            <span className="text-[10px] font-mono bg-slate-800 px-2.5 py-1 rounded-md text-amber-400 border border-slate-700 font-bold">
+              {currentUser.username === "diego7ceron@gmail.com" || currentUser.email === "diego7ceron@gmail.com" ? "System Admin" : currentUser.role === "admin" ? "Administrador" : currentUser.house}
             </span>
           </div>
 
