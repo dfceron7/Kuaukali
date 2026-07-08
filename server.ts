@@ -43,6 +43,7 @@ interface DBStructure {
   emails: any[];
   visitorPasses?: any[];
   payments?: any[];
+  properties?: any[];
 }
 
 // Seed Data
@@ -53,7 +54,17 @@ const defaultDB: DBStructure = {
   reservations: [],
   emails: [],
   visitorPasses: [],
-  payments: []
+  payments: [],
+  properties: [
+    { id: "prop_1", name: "Casa 101" },
+    { id: "prop_2", name: "Casa 102" },
+    { id: "prop_3", name: "Casa 103" },
+    { id: "prop_4", name: "Casa 104" },
+    { id: "prop_5", name: "Casa 105" },
+    { id: "prop_6", name: "Casa 201" },
+    { id: "prop_7", name: "Casa 202" },
+    { id: "prop_8", name: "Administración" }
+  ]
 };
 
 function loadDB(): DBStructure {
@@ -106,6 +117,13 @@ async function syncCollectionsToFirestore(data: DBStructure) {
         }
       }
     }
+    if (data.properties) {
+      for (const item of data.properties) {
+        if (item && item.id) {
+          await saveToFirestore("properties", item.id, item);
+        }
+      }
+    }
   } catch (err) {
     console.error("Error in background Firestore sync:", err);
   }
@@ -133,6 +151,11 @@ if (!db.users || !db.reservations || !db.emails) {
 
 if (!db.visitorPasses) {
   db.visitorPasses = [];
+  saveDB(db);
+}
+
+if (!db.properties || db.properties.length === 0) {
+  db.properties = defaultDB.properties;
   saveDB(db);
 }
 
@@ -219,9 +242,15 @@ async function syncFromFirestoreOnBoot() {
       db.emails = [];
       db.visitorPasses = [];
       db.payments = [];
+      db.properties = defaultDB.properties;
 
       fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), "utf-8");
       await saveToFirestore("users", "u_admin", db.users[0]);
+      if (db.properties) {
+        for (const prop of db.properties) {
+          await saveToFirestore("properties", prop.id, prop);
+        }
+      }
       console.log("✅ [MIGRACIÓN / LIMPIEZA] Firestore purgado y sembrado con administrador único.");
     } else {
       console.log("📈 Se encontraron datos limpios en Firestore. Sincronizando...");
@@ -229,12 +258,18 @@ async function syncFromFirestoreOnBoot() {
       const fireEmails = await loadFromFirestore("emails");
       const firePasses = await loadFromFirestore("visitorPasses");
       const firePayments = await loadFromFirestore("payments");
+      const fireProperties = await loadFromFirestore("properties");
 
       if (fireUsers && fireUsers.length > 0) db.users = fireUsers;
       db.reservations = fireReservations || [];
       db.emails = fireEmails || [];
       db.visitorPasses = firePasses || [];
       db.payments = firePayments || [];
+      if (fireProperties && fireProperties.length > 0) {
+        db.properties = fireProperties;
+      } else if (!db.properties || db.properties.length === 0) {
+        db.properties = defaultDB.properties;
+      }
       
       fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), "utf-8");
       console.log("✅ Base de datos local sincronizada.");
@@ -413,6 +448,124 @@ app.delete("/api/admin/users/:id", (req, res) => {
   saveDB(db);
 
   res.json({ success: true, message: "Usuario eliminado definitivamente." });
+});
+
+// --- PROPERTIES MANAGEMENT API ---
+// Retrieve all properties
+app.get("/api/properties", (req, res) => {
+  res.json(db.properties || []);
+});
+
+// Create property
+app.post("/api/properties", (req, res) => {
+  const { name } = req.body;
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: "El nombre del inmueble es requerido." });
+  }
+
+  const cleanName = name.trim();
+  const properties = db.properties || [];
+  
+  if (properties.some(p => p.name.toLowerCase() === cleanName.toLowerCase())) {
+    return res.status(400).json({ error: "Ya existe un inmueble con este nombre." });
+  }
+
+  const newProperty = {
+    id: "prop_" + Math.random().toString(36).substr(2, 9),
+    name: cleanName,
+    createdAt: new Date().toISOString()
+  };
+
+  if (!db.properties) db.properties = [];
+  db.properties.push(newProperty);
+  saveDB(db);
+
+  res.status(201).json(newProperty);
+});
+
+// Update property
+app.put("/api/properties/:id", (req, res) => {
+  const { id } = req.params;
+  const { name } = req.body;
+
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: "El nombre del inmueble es requerido." });
+  }
+
+  const cleanName = name.trim();
+  if (!db.properties) db.properties = [];
+
+  const propIndex = db.properties.findIndex(p => p.id === id);
+  if (propIndex === -1) {
+    return res.status(404).json({ error: "Inmueble no encontrado." });
+  }
+
+  // Check if name already exists for another property
+  if (db.properties.some(p => p.id !== id && p.name.toLowerCase() === cleanName.toLowerCase())) {
+    return res.status(400).json({ error: "Ya existe otro inmueble con este nombre." });
+  }
+
+  const oldName = db.properties[propIndex].name;
+  db.properties[propIndex].name = cleanName;
+
+  // Propagate name change to associated entities
+  if (db.users) {
+    db.users.forEach(user => {
+      if (user.house === oldName) {
+        user.house = cleanName;
+      }
+    });
+  }
+  if (db.visitorPasses) {
+    db.visitorPasses.forEach(pass => {
+      if (pass.house === oldName) {
+        pass.house = cleanName;
+      }
+    });
+  }
+  if (db.reservations) {
+    db.reservations.forEach(res => {
+      if (res.house === oldName) {
+        res.house = cleanName;
+      }
+    });
+  }
+  if (db.payments) {
+    db.payments.forEach(pay => {
+      if (pay.house === oldName) {
+        pay.house = cleanName;
+      }
+    });
+  }
+
+  saveDB(db);
+  res.json(db.properties[propIndex]);
+});
+
+// Delete property
+app.delete("/api/properties/:id", (req, res) => {
+  const { id } = req.params;
+  if (!db.properties) db.properties = [];
+
+  const propIndex = db.properties.findIndex(p => p.id === id);
+  if (propIndex === -1) {
+    return res.status(404).json({ error: "Inmueble no encontrado." });
+  }
+
+  const propName = db.properties[propIndex].name;
+
+  // Check if there are users associated with this house
+  const associatedUsers = db.users.filter(u => u.house === propName);
+  if (associatedUsers.length > 0) {
+    return res.status(400).json({ 
+      error: `No se puede eliminar el inmueble '${propName}' porque está asignado a ${associatedUsers.length} usuario(s). Cambie el inmueble de los usuarios antes de eliminarlo.` 
+    });
+  }
+
+  db.properties.splice(propIndex, 1);
+  saveDB(db);
+
+  res.json({ success: true, message: "Inmueble eliminado exitosamente." });
 });
 
 // Admin Password Reset with Temporary Password API
@@ -714,9 +867,22 @@ app.get("/api/emails", (req, res) => {
   let emails = db.emails || [];
 
   if (role === "resident" && email) {
-    emails = emails.filter(
-      (e) => e.toEmail && e.toEmail.toLowerCase() === (email as string).toLowerCase()
-    );
+    const targetUser = db.users.find(u => u.email && u.email.toLowerCase() === (email as string).toLowerCase());
+    if (targetUser && targetUser.house) {
+      // Find all emails of users belonging to the same house
+      const houseEmails = db.users
+        .filter(u => u.house && u.house.toLowerCase() === targetUser.house.toLowerCase())
+        .map(u => u.email ? u.email.toLowerCase() : "")
+        .filter(Boolean);
+      
+      emails = emails.filter(
+        (e) => e.toEmail && houseEmails.includes(e.toEmail.toLowerCase())
+      );
+    } else {
+      emails = emails.filter(
+        (e) => e.toEmail && e.toEmail.toLowerCase() === (email as string).toLowerCase()
+      );
+    }
   }
   res.json(emails);
 });
@@ -805,7 +971,12 @@ app.get("/api/visitor-passes", (req, res) => {
   let passes = db.visitorPasses || [];
 
   if (role === "resident" && userId) {
-    passes = passes.filter(p => p.userId === userId);
+    const user = db.users.find(u => u.id === userId);
+    if (user) {
+      passes = passes.filter(p => p.house === user.house);
+    } else {
+      passes = [];
+    }
   }
   // Admins and vigilantes can see all passes
   res.json(passes);
@@ -1030,7 +1201,12 @@ app.get("/api/payments", (req, res) => {
   const { userId, role } = req.query;
   let payments = db.payments || [];
   if (role === "resident" && userId) {
-    payments = payments.filter((p) => p.userId === userId);
+    const user = db.users.find(u => u.id === userId);
+    if (user) {
+      payments = payments.filter((p) => p.house === user.house);
+    } else {
+      payments = [];
+    }
   }
   res.json(payments);
 });

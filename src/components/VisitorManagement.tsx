@@ -506,32 +506,14 @@ export default function VisitorManagement({
                 {/* Interactive Mock Barcode / QR Section */}
                 <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col items-center justify-center space-y-3 shadow-inner">
                   
-                  {/* High fidelity Barcode illustration */}
-                  <div className="flex items-center space-x-[1.5px] h-12 w-full max-w-[280px] bg-white justify-center overflow-hidden py-1">
-                    <div className="h-10 w-2.5 bg-slate-900"></div>
-                    <div className="h-10 w-0.5 bg-slate-900"></div>
-                    <div className="h-10 w-1.5 bg-slate-900"></div>
-                    <div className="h-10 w-[1px] bg-slate-900"></div>
-                    <div className="h-10 w-2 bg-slate-900"></div>
-                    <div className="h-10 w-0.5 bg-slate-900"></div>
-                    <div className="h-10 w-1 bg-slate-900"></div>
-                    <div className="h-10 w-2.5 bg-slate-900"></div>
-                    <div className="h-10 w-0.5 bg-slate-900"></div>
-                    <div className="h-10 w-1.5 bg-slate-900"></div>
-                    <div className="h-10 w-1 bg-slate-900"></div>
-                    <div className="h-10 w-0.5 bg-slate-900"></div>
-                    <div className="h-10 w-2 bg-slate-900"></div>
-                    <div className="h-10 w-[1.5px] bg-slate-900"></div>
-                    <div className="h-10 w-1.5 bg-slate-900"></div>
-                    <div className="h-10 w-0.5 bg-slate-900"></div>
-                    <div className="h-10 w-2.5 bg-slate-900"></div>
-                    <div className="h-10 w-1 bg-slate-900"></div>
-                    <div className="h-10 w-1 bg-slate-900"></div>
-                    <div className="h-10 w-[1.5px] bg-slate-900"></div>
-                    <div className="h-10 w-2 bg-slate-900"></div>
-                    <div className="h-10 w-0.5 bg-slate-900"></div>
-                    <div className="h-10 w-1.5 bg-slate-900"></div>
-                    <div className="h-10 w-2.5 bg-slate-900"></div>
+                  {/* High fidelity QR Code (Real QR generator API) */}
+                  <div className="flex items-center justify-center bg-white p-2">
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(selectedPass.passCode)}`} 
+                      alt="Código QR de Pase de Visita" 
+                      className="w-32 h-32 border border-slate-150 p-2 rounded-xl bg-white"
+                      referrerPolicy="no-referrer"
+                    />
                   </div>
 
                   <div className="text-center">
@@ -539,7 +521,7 @@ export default function VisitorManagement({
                       {selectedPass.passCode}
                     </span>
                     <p className="text-[9px] text-slate-450 font-sans mt-0.5">
-                      Presente este código de barras impreso o en su celular al oficial en caseta.
+                      Presente este código QR impreso o en su celular al oficial en caseta para escanear.
                     </p>
                   </div>
                 </div>

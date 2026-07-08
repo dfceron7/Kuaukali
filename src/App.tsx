@@ -12,6 +12,7 @@ import AdminPanel from "./components/AdminPanel";
 import MyReservations from "./components/MyReservations";
 import EmailSimulator from "./components/EmailSimulator";
 import UserManagement from "./components/UserManagement";
+import PropertyManagement from "./components/PropertyManagement";
 import VisitorManagement from "./components/VisitorManagement";
 import GuardPanel from "./components/GuardPanel";
 import PaymentModule from "./components/PaymentModule";
@@ -1003,6 +1004,18 @@ export default function App() {
                   </button>
 
                   <button
+                    id="bar-tab-properties"
+                    onClick={() => setActiveTab("properties")}
+                    className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+                      activeTab === "properties"
+                        ? "bg-slate-900 text-white"
+                        : "text-slate-600 hover:text-slate-950"
+                    }`}
+                  >
+                    Control de Inmuebles
+                  </button>
+
+                  <button
                     id="bar-tab-guard-admin"
                     onClick={() => setActiveTab("guard")}
                     className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
@@ -1102,6 +1115,10 @@ export default function App() {
 
             {activeTab === "users" && currentUser.role === "admin" && (
               <UserManagement currentUser={currentUser} />
+            )}
+
+            {activeTab === "properties" && currentUser.role === "admin" && (
+              <PropertyManagement />
             )}
 
             {activeTab === "visitors" && currentUser.role === "resident" && (

@@ -32,9 +32,24 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
   // Filter/Search state
   const [searchTerm, setSearchTerm] = useState<string>("");
 
+  // Properties list state
+  const [properties, setProperties] = useState<any[]>([]);
+
   // Password visibility states
   const [showAdminPassword, setShowAdminPassword] = useState<boolean>(false);
   const [showResetPassword, setShowResetPassword] = useState<boolean>(false);
+
+  const fetchProperties = async () => {
+    try {
+      const res = await fetch("/api/properties");
+      if (res.ok) {
+        const data = await res.json();
+        setProperties(data);
+      }
+    } catch (e) {
+      console.error("Error loading properties in UserManagement", e);
+    }
+  };
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -57,6 +72,7 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
 
   useEffect(() => {
     fetchUsers();
+    fetchProperties();
   }, []);
 
   const handleCreateUser = async (e: React.FormEvent) => {
@@ -397,16 +413,35 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
                 Inmueble / Lote / Casa
               </label>
               <div className="relative">
-                <Home className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                <input
-                  id="admin-create-house"
-                  type="text"
-                  placeholder="ej. Casa 105"
-                  value={house}
-                  onChange={(e) => setHouse(e.target.value)}
-                  className="w-full text-xs pl-10 pr-3 py-2.5 rounded-lg border border-slate-300 bg-slate-50 focus:bg-white focus:outline-hidden focus:border-amber-500 text-slate-900"
-                  required
-                />
+                <Home className="absolute left-3 top-2.5 h-4 w-4 text-slate-400 z-10" />
+                {role === "resident" ? (
+                  <select
+                    id="admin-create-house"
+                    value={house}
+                    onChange={(e) => setHouse(e.target.value)}
+                    className="w-full text-xs pl-10 pr-3 py-2.5 rounded-lg border border-slate-300 bg-slate-50 focus:bg-white focus:outline-hidden focus:border-amber-500 text-slate-900 cursor-pointer"
+                    required
+                  >
+                    <option value="">-- Seleccionar Inmueble --</option>
+                    {properties
+                      .filter((p) => p.name !== "Administración" && p.name !== "Caseta de Vigilancia")
+                      .map((p) => (
+                        <option key={p.id} value={p.name}>
+                          {p.name}
+                        </option>
+                      ))}
+                  </select>
+                ) : (
+                  <input
+                    id="admin-create-house"
+                    type="text"
+                    value={house}
+                    onChange={(e) => setHouse(e.target.value)}
+                    className="w-full text-xs pl-10 pr-3 py-2.5 rounded-lg border border-slate-300 bg-slate-100 text-slate-500 focus:outline-hidden"
+                    required
+                    disabled={role === "vigilante"}
+                  />
+                )}
               </div>
             </div>
 

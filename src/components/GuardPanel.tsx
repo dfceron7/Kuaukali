@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from "react";
 import { User, VisitorPass } from "../types";
+import { Html5Qrcode } from "html5-qrcode";
 import { 
   Search, 
   ShieldCheck, 
@@ -19,7 +20,8 @@ import {
   CheckCircle,
   FileText,
   BellRing,
-  RefreshCw
+  RefreshCw,
+  Camera
 } from "lucide-react";
 
 interface GuardPanelProps {
@@ -32,6 +34,8 @@ export default function GuardPanel({ currentUser }: GuardPanelProps) {
   const [searchResult, setSearchResult] = useState<VisitorPass | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [isScanning, setIsScanning] = useState<boolean>(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
 
   // Verification form
   const [notes, setNotes] = useState<string>("");
@@ -64,9 +68,8 @@ export default function GuardPanel({ currentUser }: GuardPanelProps) {
     fetchRecentPasses();
   }, []);
 
-  const handleSearch = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!searchCode.trim()) return;
+  const triggerCodeSearch = async (code: string) => {
+    if (!code.trim()) return;
 
     setLoading(true);
     setSearchError(null);
@@ -74,7 +77,7 @@ export default function GuardPanel({ currentUser }: GuardPanelProps) {
     setActionSuccess(null);
 
     try {
-      const res = await fetch(`/api/visitor-passes/search/${encodeURIComponent(searchCode.trim())}`);
+      const res = await fetch(`/api/visitor-passes/search/${encodeURIComponent(code.trim())}`);
       if (res.ok) {
         const data = await res.json();
         setSearchResult(data);
@@ -89,6 +92,66 @@ export default function GuardPanel({ currentUser }: GuardPanelProps) {
       setLoading(false);
     }
   };
+
+  const handleSearch = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    triggerCodeSearch(searchCode);
+  };
+
+  useEffect(() => {
+    let html5QrCode: any = null;
+
+    if (isScanning) {
+      setCameraError(null);
+      
+      const timer = setTimeout(() => {
+        try {
+          const container = document.getElementById("camera-reader");
+          if (!container) return;
+
+          html5QrCode = new Html5Qrcode("camera-reader");
+          html5QrCode.start(
+            { facingMode: "environment" },
+            {
+              fps: 15,
+              qrbox: { width: 250, height: 150 }, // standard wide box for QR/Barcodes
+              aspectRatio: 1.333333 // 4:3
+            },
+            (decodedText: string) => {
+              const code = decodedText.trim().toUpperCase();
+              setSearchCode(code);
+              setIsScanning(false);
+              triggerCodeSearch(code);
+            },
+            (errorMessage: string) => {
+              // verbose scan logs ignored
+            }
+          ).catch((err: any) => {
+            console.error("Camera access error:", err);
+            setCameraError("No se pudo acceder a la cámara. Verifique que tenga permisos en su dispositivo o que no esté ocupada por otra app.");
+          });
+        } catch (err) {
+          console.error("Failed to init Html5Qrcode", err);
+          setCameraError("Error al iniciar el módulo de cámara.");
+        }
+      }, 300);
+
+      return () => {
+        clearTimeout(timer);
+        if (html5QrCode) {
+          try {
+            if (html5QrCode.isScanning) {
+              html5QrCode.stop().then(() => {
+                html5QrCode.clear();
+              }).catch((err: any) => console.error("Error stopping scanner:", err));
+            }
+          } catch (err) {
+            console.error("Cleanup error", err);
+          }
+        }
+      };
+    }
+  }, [isScanning]);
 
   const handleVerify = async (action: "approved" | "rejected") => {
     if (!searchResult) return;
@@ -180,15 +243,26 @@ export default function GuardPanel({ currentUser }: GuardPanelProps) {
 
             <form onSubmit={handleSearch} className="flex gap-3">
               <div className="relative flex-1">
-                <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-450" />
+                <Search className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400" />
                 <input
                   id="guard-search-code"
                   type="text"
                   placeholder="Ingrese el código de acceso (ej. KK-123456 o use lector)"
                   value={searchCode}
                   onChange={(e) => setSearchCode(e.target.value)}
-                  className="w-full text-xs pl-11 pr-3 py-3 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:outline-hidden focus:border-teal-500 text-slate-900 font-mono placeholder:font-sans uppercase font-bold"
+                  className="w-full text-xs pl-11 pr-12 py-3 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:outline-hidden focus:border-teal-500 text-slate-900 font-mono placeholder:font-sans uppercase font-bold"
                 />
+                {/* Botón para activar/desactivar la cámara */}
+                <button
+                  type="button"
+                  onClick={() => setIsScanning(!isScanning)}
+                  className={`absolute right-3 top-2 p-1.5 rounded-lg transition-colors cursor-pointer flex items-center justify-center ${
+                    isScanning ? "bg-rose-100 text-rose-600 hover:bg-rose-200 animate-pulse" : "bg-teal-50 text-teal-600 hover:bg-teal-100"
+                  }`}
+                  title="Escanear con Cámara de Celular/Tablet"
+                >
+                  <Camera className="h-4 w-4" />
+                </button>
               </div>
               <button
                 id="btn-guard-search"
@@ -199,6 +273,40 @@ export default function GuardPanel({ currentUser }: GuardPanelProps) {
                 {loading ? "Validando..." : "Verificar Pase"}
               </button>
             </form>
+
+            {/* Cámara Escáner en vivo */}
+            {isScanning && (
+              <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50 space-y-3 relative">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-rose-500 animate-ping" />
+                    Cámara Activa - Apunte al Código QR o de Barras
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsScanning(false)}
+                    className="text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-1 rounded-lg font-bold transition-colors cursor-pointer select-none"
+                  >
+                    Cerrar Cámara
+                  </button>
+                </div>
+
+                <div className="relative aspect-video max-w-md mx-auto rounded-xl overflow-hidden bg-slate-950 border border-slate-300 flex items-center justify-center">
+                  <div id="camera-reader" className="w-full h-full" />
+                  
+                  {/* Visor de escaneo animado */}
+                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                    <div className="w-48 h-32 border-2 border-teal-400 rounded-lg bg-teal-400/5 flex items-center justify-center relative">
+                      <div className="absolute left-0 right-0 h-0.5 bg-rose-500 animate-bounce top-1/2" />
+                    </div>
+                  </div>
+                </div>
+
+                {cameraError && (
+                  <p className="text-[11px] text-rose-600 font-medium text-center">{cameraError}</p>
+                )}
+              </div>
+            )}
 
             {searchError && (
               <div className="bg-rose-50 border-l-4 border-rose-500 text-rose-800 p-4 rounded-r-xl text-xs flex items-start space-x-2.5">
