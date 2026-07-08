@@ -1,0 +1,6 @@
+{
+  "name": "Administración de Casa Club",
+  "description": "Portal interactivo para residentes para reservar la casa club, con calendario en tiempo real, validación de reglas de horario, carga de comprobantes de pago y panel de aprobación administrativa.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

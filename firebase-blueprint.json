@@ -1,0 +1,116 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User account in the residential portal",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "username": { "type": "string" },
+        "password": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "resident", "vigilante"] },
+        "house": { "type": "string" },
+        "email": { "type": "string" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["id", "username", "password", "role", "house", "email", "isActive"]
+    },
+    "Reservation": {
+      "title": "Reservation",
+      "description": "House club reservation by a resident",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "house": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "date": { "type": "string" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "durationHours": { "type": "number" },
+        "guestsCount": { "type": "number" },
+        "proofFileName": { "type": "string" },
+        "proofFileUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected", "cancelled"] },
+        "createdAt": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["id", "userId", "userName", "house", "userEmail", "date", "startTime", "endTime", "durationHours", "guestsCount", "status", "createdAt"]
+    },
+    "Email": {
+      "title": "Email",
+      "description": "Simulated system email notification",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "to": { "type": "string" },
+        "subject": { "type": "string" },
+        "body": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "read": { "type": "boolean" }
+      },
+      "required": ["id", "to", "subject", "body", "timestamp", "read"]
+    },
+    "VisitorPass": {
+      "title": "VisitorPass",
+      "description": "Access pass generated for visitors",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "residentId": { "type": "string" },
+        "residentName": { "type": "string" },
+        "house": { "type": "string" },
+        "visitorName": { "type": "string" },
+        "visitorId": { "type": "string" },
+        "visitDate": { "type": "string" },
+        "visitTime": { "type": "string" },
+        "vehiclePlate": { "type": "string" },
+        "passCode": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "used", "expired", "revoked"] },
+        "createdAt": { "type": "string" },
+        "logs": { "type": "array" }
+      },
+      "required": ["id", "residentId", "residentName", "house", "visitorName", "visitDate", "passCode", "status", "createdAt"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Payment records for reservations",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "reservationId": { "type": "string" },
+        "residentId": { "type": "string" },
+        "residentName": { "type": "string" },
+        "house": { "type": "string" },
+        "amount": { "type": "number" },
+        "proofUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "verified", "rejected"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "reservationId", "residentId", "residentName", "house", "amount", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Residential user profiles"
+    },
+    "/reservations/{reservationId}": {
+      "schema": "Reservation",
+      "description": "Resident booking reservations"
+    },
+    "/emails/{emailId}": {
+      "schema": "Email",
+      "description": "Simulated outgoing and historical email messages"
+    },
+    "/visitorPasses/{passId}": {
+      "schema": "VisitorPass",
+      "description": "Active and past visitor entrance passes"
+    },
+    "/payments/{paymentId}": {
+      "schema": "Payment",
+      "description": "Receipts and status of payments"
+    }
+  }
+}
