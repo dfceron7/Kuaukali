@@ -54,6 +54,7 @@ export default function PaymentModule({ currentUser }: PaymentModuleProps) {
   const [myStatus, setMyStatus] = useState<HousePaymentStatus | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState<boolean>(false);
+  const [config, setConfig] = useState<any>(null);
 
   // Forms and state
   const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
@@ -77,6 +78,34 @@ export default function PaymentModule({ currentUser }: PaymentModuleProps) {
   const [rejectingPaymentId, setRejectingPaymentId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState<string>("");
   const [adminTab, setAdminTab] = useState<"pending" | "history">("pending");
+
+  const getFeeForMonth = (monthName: string) => {
+    if (!config) return 50;
+    const defaultFee = config.monthlyFee !== undefined ? Number(config.monthlyFee) : 50;
+    const history = config.feeHistory || [];
+    if (history.length === 0) return defaultFee;
+
+    const targetIdx = ALL_MONTHS_2026.indexOf(monthName);
+    if (targetIdx === -1) return defaultFee;
+
+    let bestFee = defaultFee;
+    let bestIdx = -1;
+
+    for (const entry of history) {
+      const entryIdx = ALL_MONTHS_2026.indexOf(entry.effectiveFromMonth);
+      if (entryIdx !== -1 && entryIdx <= targetIdx) {
+        if (entryIdx > bestIdx) {
+          bestIdx = entryIdx;
+          bestFee = Number(entry.fee);
+        }
+      }
+    }
+    return bestFee;
+  };
+
+  const calculateTotalAmount = (months: string[]): number => {
+    return months.reduce((total, m) => total + getFeeForMonth(m), 0);
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -102,6 +131,13 @@ export default function PaymentModule({ currentUser }: PaymentModuleProps) {
             setMyStatus(match);
           }
         }
+      }
+
+      // 3. Fetch config
+      const resConfig = await fetch("/api/config");
+      if (resConfig.ok) {
+        const data = await resConfig.json();
+        setConfig(data);
       }
     } catch (err) {
       console.error("Error fetching payment data:", err);
@@ -134,7 +170,7 @@ export default function PaymentModule({ currentUser }: PaymentModuleProps) {
     const correlative = `PROV-2206-${Math.floor(100 + Math.random() * 900)}`;
     setProvisionalCoupon({
       months: [...selectedMonths],
-      amount: selectedMonths.length * MONTHLY_FEE,
+      amount: calculateTotalAmount(selectedMonths),
       code,
       correlative,
       generatedAt: new Date().toLocaleDateString("es-ES")
@@ -170,7 +206,7 @@ export default function PaymentModule({ currentUser }: PaymentModuleProps) {
       <text x='50' y='165' font-family='sans-serif' font-size='11' fill='%23475569'>Destinatario: Residencial KuauKali S.A.</text>
       <text x='50' y='190' font-family='sans-serif' font-size='11' fill='%23475569'>Origen: ${currentUser.house}</text>
       <text x='50' y='215' font-family='sans-serif' font-size='11' fill='%23475569'>Meses: ${selectedMonths.join(", ")}</text>
-      <text x='50' y='245' font-family='sans-serif' font-size='14' font-weight='bold' fill='%230d9488'>Monto: $${selectedMonths.length * MONTHLY_FEE}.00 USD</text>
+      <text x='50' y='245' font-family='sans-serif' font-size='14' font-weight='bold' fill='%230d9488'>Monto: $${calculateTotalAmount(selectedMonths)}.00 USD</text>
     </svg>`;
     const dataUrl = `data:image/svg+xml;utf8,${encodeURIComponent(svgContent)}`;
     setProofFileUrl(dataUrl);
@@ -207,7 +243,7 @@ export default function PaymentModule({ currentUser }: PaymentModuleProps) {
           house: currentUser.house,
           userEmail: currentUser.email,
           months: selectedMonths,
-          amount: selectedMonths.length * MONTHLY_FEE,
+          amount: calculateTotalAmount(selectedMonths),
           transactionReference: transactionReference.trim(),
           proofFileName,
           proofFileUrl
@@ -324,7 +360,7 @@ export default function PaymentModule({ currentUser }: PaymentModuleProps) {
           </div>
           <div className="text-right shrink-0">
             <span className="text-[10px] uppercase font-mono text-slate-450 block">Precio de Cuota de Vigilancia</span>
-            <span className="text-2xl font-black text-slate-900">${MONTHLY_FEE}.00 <span className="text-xs font-normal text-slate-500">USD / mes</span></span>
+            <span className="text-2xl font-black text-slate-900">${config?.monthlyFee ?? 50}.00 <span className="text-xs font-normal text-slate-500">USD / mes</span></span>
           </div>
         </div>
 
@@ -413,7 +449,7 @@ export default function PaymentModule({ currentUser }: PaymentModuleProps) {
                     </div>
                     <div className="flex justify-between items-center text-xs">
                       <span className="text-slate-500 uppercase font-mono">Costo total a cancelar:</span>
-                      <strong className="text-lg text-teal-700 font-sans">${selectedMonths.length * MONTHLY_FEE}.00 USD</strong>
+                      <strong className="text-lg text-teal-700 font-sans">${calculateTotalAmount(selectedMonths)}.00 USD</strong>
                     </div>
 
                     <div className="pt-2 border-t border-slate-200 flex flex-col sm:flex-row gap-2">

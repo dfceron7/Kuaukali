@@ -85,6 +85,51 @@ export default function PropertyManagement() {
   const [payProofName, setPayProofName] = useState<string>("");
   const [payProofUrl, setPayProofUrl] = useState<string>("");
   const [paying, setPaying] = useState<boolean>(false);
+  const [config, setConfig] = useState<any>(null);
+
+  const fetchConfig = async () => {
+    try {
+      const res = await fetch("/api/config");
+      if (res.ok) {
+        const data = await res.json();
+        setConfig(data);
+      }
+    } catch (e) {
+      console.error("Error fetching config in PropertyManagement:", e);
+    }
+  };
+
+  const getFeeForMonth = (monthName: string) => {
+    const monthsList = [
+      "Enero 2026", "Febrero 2026", "Marzo 2026", "Abril 2026", "Mayo 2026", "Junio 2026",
+      "Julio 2026", "Agosto 2026", "Septiembre 2026", "Octubre 2026", "Noviembre 2026", "Diciembre 2026"
+    ];
+    if (!config) return 50;
+    const defaultFee = config.monthlyFee !== undefined ? Number(config.monthlyFee) : 50;
+    const history = config.feeHistory || [];
+    if (history.length === 0) return defaultFee;
+
+    const targetIdx = monthsList.indexOf(monthName);
+    if (targetIdx === -1) return defaultFee;
+
+    let bestFee = defaultFee;
+    let bestIdx = -1;
+
+    for (const entry of history) {
+      const entryIdx = monthsList.indexOf(entry.effectiveFromMonth);
+      if (entryIdx !== -1 && entryIdx <= targetIdx) {
+        if (entryIdx > bestIdx) {
+          bestIdx = entryIdx;
+          bestFee = Number(entry.fee);
+        }
+      }
+    }
+    return bestFee;
+  };
+
+  const calculateTotalAmount = (months: string[]): number => {
+    return months.reduce((total, m) => total + getFeeForMonth(m), 0);
+  };
 
   const fetchProperties = async () => {
     setLoading(true);
@@ -171,7 +216,7 @@ export default function PropertyManagement() {
           paymentMethod: payMethod,
           transactionReference: payReference,
           proofFileUrl: payProofUrl,
-          amount: payMonths.length * 50 // Standard $50 USD per month fee
+          amount: calculateTotalAmount(payMonths)
         })
       });
 
@@ -208,6 +253,7 @@ export default function PropertyManagement() {
 
   useEffect(() => {
     fetchProperties();
+    fetchConfig();
   }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -849,7 +895,7 @@ export default function PropertyManagement() {
                       <div className="bg-slate-950 text-white rounded-lg p-3 text-xs flex justify-between items-center">
                         <div>
                           <span className="block text-[10px] text-slate-400 font-bold uppercase">Monto Total a Registrar</span>
-                          <span className="text-sm font-extrabold text-amber-400">${payMonths.length * 50}.00 USD</span>
+                          <span className="text-sm font-extrabold text-amber-400">${calculateTotalAmount(payMonths)}.00 USD</span>
                         </div>
                         <div className="text-right">
                           <span className="block text-[10px] text-slate-400 font-bold uppercase">Meses seleccionados</span>

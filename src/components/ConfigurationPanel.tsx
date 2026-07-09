@@ -28,6 +28,8 @@ interface AppConfig {
   moraThresholdMonths: number;
   moraStartMonth: string;
   reservationNorms: string[];
+  monthlyFee?: number;
+  feeHistory?: any[];
 }
 
 interface PaymentStatusReport {
@@ -44,6 +46,8 @@ export default function ConfigurationPanel({ currentUser }: ConfigurationPanelPr
   const [moraStartMonth, setMoraStartMonth] = useState<string>("Enero 2026");
   const [norms, setNorms] = useState<string[]>([]);
   const [newNorm, setNewNorm] = useState<string>("");
+  const [monthlyFee, setMonthlyFee] = useState<number>(50);
+  const [feeHistory, setFeeHistory] = useState<any[]>([]);
   const [loadingConfig, setLoadingConfig] = useState<boolean>(true);
   const [saveStatus, setSaveStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [resettingDb, setResettingDb] = useState<boolean>(false);
@@ -79,6 +83,8 @@ export default function ConfigurationPanel({ currentUser }: ConfigurationPanelPr
         setMoraThreshold(data.moraThresholdMonths ?? 1);
         setMoraStartMonth(data.moraStartMonth ?? "Enero 2026");
         setNorms(data.reservationNorms ?? []);
+        setMonthlyFee(data.monthlyFee ?? 50);
+        setFeeHistory(data.feeHistory ?? []);
       }
     } catch (e) {
       console.error("Error fetching config:", e);
@@ -121,13 +127,15 @@ export default function ConfigurationPanel({ currentUser }: ConfigurationPanelPr
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           moraThresholdMonths: Number(moraThreshold),
-          moraStartMonth
+          moraStartMonth,
+          monthlyFee: Number(monthlyFee)
         })
       });
       if (res.ok) {
-        setSaveStatus({ type: "success", message: "Configuración de mora guardada exitosamente." });
-        // Refresh statuses
+        setSaveStatus({ type: "success", message: "Configuración de cuota y mora guardada exitosamente." });
+        // Refresh statuses and local config state
         await fetchReportData();
+        await fetchConfig();
         setTimeout(() => setSaveStatus(null), 4000);
       } else {
         setSaveStatus({ type: "error", message: "Error al guardar la configuración." });
@@ -370,13 +378,33 @@ export default function ConfigurationPanel({ currentUser }: ConfigurationPanelPr
           <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-6">
             <div className="border-b border-slate-100 pb-3 flex items-center space-x-2">
               <AlertTriangle className="h-5 w-5 text-amber-500" />
-              <h3 className="font-bold text-slate-900 font-sans text-sm uppercase tracking-wide">Configuración de Mora</h3>
+              <h3 className="font-bold text-slate-900 font-sans text-sm uppercase tracking-wide">Parámetros de Vigilancia y Mora</h3>
             </div>
 
             {loadingConfig ? (
               <div className="text-xs text-slate-400 text-center py-4">Cargando parámetros...</div>
             ) : (
               <div className="space-y-4 text-xs">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1.5">
+                    Monto de Cuota Mensual (USD):
+                  </label>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-slate-500 font-extrabold text-sm">$</span>
+                    <input
+                      type="number"
+                      min="1"
+                      value={monthlyFee}
+                      onChange={(e) => setMonthlyFee(Math.max(1, parseInt(e.target.value) || 0))}
+                      className="w-24 pl-3 pr-2 py-2 rounded-lg border border-slate-300 bg-slate-50 text-slate-900 font-bold focus:bg-white focus:outline-hidden text-center text-xs"
+                    />
+                    <span className="text-slate-500 font-medium">USD al mes</span>
+                  </div>
+                  <p className="text-[10px] text-amber-600 font-medium bg-amber-50/70 border border-amber-200 rounded-xl p-3 mt-1.5 leading-relaxed">
+                    ⚠️ <strong>Regla Financiera:</strong> Cualquier cambio en la cuota aplicará a partir del <strong>siguiente mes</strong> (Julio 2026). El mes actual en curso (Junio 2026) se mantiene con la cuota previa para proteger cobros conciliados.
+                  </p>
+                </div>
+
                 <div>
                   <label className="block font-bold text-slate-700 mb-1.5">
                     Meses para considerar en MORA:
@@ -414,6 +442,28 @@ export default function ConfigurationPanel({ currentUser }: ConfigurationPanelPr
                     Los meses anteriores a la fecha seleccionada no serán contabilizados en la deuda pendiente de los residentes.
                   </p>
                 </div>
+
+                {/* Historical Log */}
+                {feeHistory && feeHistory.length > 0 && (
+                  <div className="pt-3 border-t border-slate-100 space-y-1.5">
+                    <label className="block font-bold text-slate-700">
+                      Historial de Ajustes de Cuota:
+                    </label>
+                    <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 divide-y divide-slate-200/60 max-h-36 overflow-y-auto">
+                      {feeHistory.map((h: any, idx: number) => (
+                        <div key={idx} className="flex justify-between items-center py-1.5 first:pt-0 last:pb-0 text-[10px] text-slate-600 font-mono">
+                          <div>
+                            <span className="font-bold text-teal-600 font-sans text-xs">${h.fee}.00</span>
+                            <span className="text-slate-400 font-sans ml-1">desde {h.effectiveFromMonth}</span>
+                          </div>
+                          <span className="text-[9px] text-slate-400 font-sans">
+                            {new Date(h.updatedAt).toLocaleDateString("es-ES")}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {saveStatus && (
                   <div className={`p-2.5 rounded text-[11px] font-medium leading-relaxed ${

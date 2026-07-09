@@ -599,6 +599,39 @@ app.delete("/api/properties/:id", (req, res) => {
   res.json({ success: true, message: "Inmueble eliminado exitosamente." });
 });
 
+// Helpers for dynamic monthly fee and historical pricing
+function getFeeForMonth(monthName: string): number {
+  const ALL_MONTHS_2026 = [
+    "Enero 2026", "Febrero 2026", "Marzo 2026", "Abril 2026", "Mayo 2026", "Junio 2026",
+    "Julio 2026", "Agosto 2026", "Septiembre 2026", "Octubre 2026", "Noviembre 2026", "Diciembre 2026"
+  ];
+  if (!db.config) return 50;
+  const defaultFee = db.config.monthlyFee !== undefined ? Number(db.config.monthlyFee) : 50;
+  const history = db.config.feeHistory || [];
+  if (history.length === 0) return defaultFee;
+
+  const targetIdx = ALL_MONTHS_2026.indexOf(monthName);
+  if (targetIdx === -1) return defaultFee;
+
+  let bestFee = defaultFee;
+  let bestIdx = -1;
+
+  for (const entry of history) {
+    const entryIdx = ALL_MONTHS_2026.indexOf(entry.effectiveFromMonth);
+    if (entryIdx !== -1 && entryIdx <= targetIdx) {
+      if (entryIdx > bestIdx) {
+        bestIdx = entryIdx;
+        bestFee = Number(entry.fee);
+      }
+    }
+  }
+  return bestFee;
+}
+
+function calculateTotalAmount(months: string[]): number {
+  return months.reduce((total: number, m: string) => total + getFeeForMonth(m), 0);
+}
+
 // Admin registers direct payment for a property
 app.post("/api/admin/properties/:id/pay", (req, res) => {
   const { id } = req.params;
@@ -634,7 +667,7 @@ app.post("/api/admin/properties/:id/pay", (req, res) => {
     house: property.name,
     userEmail,
     months,
-    amount: amount || (months.length * 50),
+    amount: amount || calculateTotalAmount(months),
     correlative,
     passCode,
     transactionReference: transactionReference.trim(),
@@ -1684,6 +1717,8 @@ app.get("/api/config", (req, res) => {
   const config = db.config || {
     moraThresholdMonths: 1,
     moraStartMonth: "Enero 2026",
+    monthlyFee: 50,
+    feeHistory: [],
     reservationNorms: [
       "Duración máxima permitida: 5 horas por reserva.",
       "Separación mínima entre eventos: 1 hora limpia de por medio.",
@@ -1694,10 +1729,20 @@ app.get("/api/config", (req, res) => {
 });
 
 app.post("/api/config", (req, res) => {
-  const { moraThresholdMonths, moraStartMonth, reservationNorms } = req.body;
+  const { moraThresholdMonths, moraStartMonth, reservationNorms, monthlyFee } = req.body;
   
   if (!db.config) {
-    db.config = {};
+    db.config = {
+      moraThresholdMonths: 1,
+      moraStartMonth: "Enero 2026",
+      monthlyFee: 50,
+      feeHistory: [],
+      reservationNorms: [
+        "Duración máxima permitida: 5 horas por reserva.",
+        "Separación mínima entre eventos: 1 hora limpia de por medio.",
+        "Se requiere comprobante de transferencia bancaria visible para estudio administrativo."
+      ]
+    };
   }
   
   if (moraThresholdMonths !== undefined) {
@@ -1708,6 +1753,30 @@ app.post("/api/config", (req, res) => {
   }
   if (reservationNorms !== undefined && Array.isArray(reservationNorms)) {
     db.config.reservationNorms = reservationNorms;
+  }
+  if (monthlyFee !== undefined) {
+    const newFee = Number(monthlyFee);
+    const oldFee = db.config.monthlyFee !== undefined ? Number(db.config.monthlyFee) : 50;
+    
+    if (newFee !== oldFee) {
+      db.config.monthlyFee = newFee;
+      if (!db.config.feeHistory) {
+        db.config.feeHistory = [];
+      }
+      
+      // Calculate next month dynamically based on current date
+      const now = new Date();
+      const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+      const nextMonthIdx = (now.getMonth() + 1) % 12;
+      const nextMonthYear = now.getFullYear() + (now.getMonth() + 1 >= 12 ? 1 : 0);
+      const nextMonthStr = `${monthNames[nextMonthIdx]} ${nextMonthYear}`;
+      
+      db.config.feeHistory.push({
+        fee: newFee,
+        effectiveFromMonth: nextMonthStr,
+        updatedAt: now.toISOString()
+      });
+    }
   }
   
   saveDB(db);
