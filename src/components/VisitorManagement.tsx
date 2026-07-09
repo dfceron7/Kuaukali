@@ -430,10 +430,10 @@ export default function VisitorManagement({
       {/* Selected Pass Interactive Modal / Detail */}
       {selectedPass && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in" id="visitor-pass-modal">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden text-slate-800">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full max-h-[90vh] md:max-h-[85vh] flex flex-col text-slate-800 overflow-hidden">
             
             {/* Header */}
-            <div className="bg-slate-900 text-white p-5 flex items-center justify-between">
+            <div className="bg-slate-900 text-white p-5 flex items-center justify-between shrink-0">
               <div className="flex items-center space-x-2">
                 <ShieldCheck className="text-amber-500 h-5 w-5" />
                 <h4 className="font-bold text-sm font-sans">Pase de Acceso Autorizado</h4>
@@ -447,7 +447,7 @@ export default function VisitorManagement({
             </div>
 
             {/* Pass Visual (Ticket Style) */}
-            <div className="p-6 space-y-6">
+            <div className="p-6 space-y-6 overflow-y-auto flex-1">
               
               <div className="border-2 border-dashed border-slate-200 rounded-2xl p-5 bg-slate-50 relative overflow-hidden" id="print-pass-area">
                 

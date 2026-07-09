@@ -113,9 +113,13 @@ export default function GuardPanel({ currentUser }: GuardPanelProps) {
           html5QrCode.start(
             { facingMode: "environment" },
             {
-              fps: 15,
-              qrbox: { width: 250, height: 150 }, // standard wide box for QR/Barcodes
-              aspectRatio: 1.333333 // 4:3
+              fps: 20,
+              qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+                const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+                const qrboxSize = Math.floor(minEdge * 0.75); // 75% square of shortest side for instant focus
+                return { width: qrboxSize, height: qrboxSize };
+              },
+              aspectRatio: 1.333333 // 4:3 matches native camera resolution perfectly
             },
             (decodedText: string) => {
               const code = decodedText.trim().toUpperCase();
@@ -291,13 +295,13 @@ export default function GuardPanel({ currentUser }: GuardPanelProps) {
                   </button>
                 </div>
 
-                <div className="relative aspect-video max-w-md mx-auto rounded-xl overflow-hidden bg-slate-950 border border-slate-300 flex items-center justify-center">
+                <div className="relative aspect-[4/3] max-w-lg mx-auto rounded-2xl overflow-hidden bg-slate-950 border-2 border-teal-500/30 flex items-center justify-center shadow-lg">
                   <div id="camera-reader" className="w-full h-full" />
                   
-                  {/* Visor de escaneo animado */}
+                  {/* Visor de escaneo animado (Cuadrado para QR) */}
                   <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                    <div className="w-48 h-32 border-2 border-teal-400 rounded-lg bg-teal-400/5 flex items-center justify-center relative">
-                      <div className="absolute left-0 right-0 h-0.5 bg-rose-500 animate-bounce top-1/2" />
+                    <div className="w-56 h-56 border-2 border-teal-400 rounded-2xl bg-teal-400/5 flex items-center justify-center relative shadow-[0_0_15px_rgba(20,184,166,0.15)]">
+                      <div className="absolute left-4 right-4 h-0.5 bg-rose-500 shadow-[0_0_8px_#ef4444] animate-bounce top-1/2" />
                     </div>
                   </div>
                 </div>
