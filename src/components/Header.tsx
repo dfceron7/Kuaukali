@@ -18,7 +18,8 @@ import {
   Users, 
   Eye, 
   CreditCard, 
-  Mail 
+  Mail,
+  Settings
 } from "lucide-react";
 
 interface HeaderProps {
@@ -52,7 +53,7 @@ export default function Header({ currentUser, onLogout, activeTab, setActiveTab 
                 Residencial KuauKali
               </h1>
               <p className="text-[9px] md:text-xs text-amber-500 font-mono tracking-wider uppercase">
-                Casa Club & Amenities
+                Nuevo Cuscatlán
               </p>
             </div>
           </div>
@@ -71,6 +72,11 @@ export default function Header({ currentUser, onLogout, activeTab, setActiveTab 
                       <>
                         <ShieldAlert className="h-2.5 w-2.5 text-amber-400 inline" />
                         <span className="text-amber-400 font-bold">System Admin</span>
+                      </>
+                    ) : currentUser.role === "directiva" ? (
+                      <>
+                        <ShieldAlert className="h-2.5 w-2.5 text-purple-400 inline" />
+                        <span className="text-purple-400 font-bold">Directiva</span>
                       </>
                     ) : currentUser.role === "admin" ? (
                       <>
@@ -211,8 +217,8 @@ export default function Header({ currentUser, onLogout, activeTab, setActiveTab 
               </button>
             )}
 
-            {/* Admin Actions */}
-            {currentUser.role === "admin" && (
+            {/* Admin/Directiva Actions */}
+            {(currentUser.role === "admin" || currentUser.role === "directiva") && (
               <>
                 <button
                   id="mob-tab-admin"
@@ -241,6 +247,19 @@ export default function Header({ currentUser, onLogout, activeTab, setActiveTab 
                 </button>
 
                 <button
+                  id="mob-tab-properties"
+                  onClick={() => handleSelectTab("properties")}
+                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+                    activeTab === "properties"
+                      ? "bg-amber-500 text-slate-950"
+                      : "text-slate-300 hover:text-white hover:bg-slate-800"
+                  }`}
+                >
+                  <Building className="h-4 w-4 shrink-0" />
+                  <span>Control de Inmuebles</span>
+                </button>
+
+                <button
                   id="mob-tab-guard-admin"
                   onClick={() => handleSelectTab("guard")}
                   className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
@@ -252,6 +271,21 @@ export default function Header({ currentUser, onLogout, activeTab, setActiveTab 
                   <Eye className="h-4 w-4 shrink-0" />
                   <span>Monitoreo de Visitas</span>
                 </button>
+
+                {(currentUser.role === "directiva" || currentUser.id === "u_admin") && (
+                  <button
+                    id="mob-tab-config"
+                    onClick={() => handleSelectTab("config")}
+                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+                      activeTab === "config"
+                        ? "bg-amber-500 text-slate-950"
+                        : "text-slate-300 hover:text-white hover:bg-slate-800"
+                    }`}
+                  >
+                    <Settings className="h-4 w-4 shrink-0" />
+                    <span>Configuración</span>
+                  </button>
+                )}
               </>
             )}
 
@@ -269,7 +303,7 @@ export default function Header({ currentUser, onLogout, activeTab, setActiveTab 
               <span>
                 {currentUser.role === "resident" 
                   ? "Pagos de Vigilancia" 
-                  : currentUser.role === "admin" 
+                  : (currentUser.role === "admin" || currentUser.role === "directiva") 
                   ? "Control de Pagos" 
                   : "Matriz de Solvencia"}
               </span>

@@ -488,7 +488,7 @@ export default function PaymentModule({ currentUser }: PaymentModuleProps) {
                     <div className="space-y-1.5">
                       <label className="text-[11px] font-bold text-slate-500 uppercase block">Adjuntar Comprobante de Pago:</label>
                       <div className="flex gap-2">
-                        <label className="flex-1 border border-slate-300 hover:border-slate-400 bg-slate-50 hover:bg-slate-100/50 rounded-xl px-3 py-2.5 text-xs text-slate-500 flex items-center justify-center space-x-1.5 cursor-pointer font-bold select-none">
+                        <label className="flex-1 w-full border border-slate-300 hover:border-slate-400 bg-slate-50 hover:bg-slate-100/50 rounded-xl px-3 py-2.5 text-xs text-slate-500 flex items-center justify-center space-x-1.5 cursor-pointer font-bold select-none">
                           <Upload className="h-4 w-4 text-slate-450" />
                           <span className="truncate">{proofFileName || "Subir Comprobante"}</span>
                           <input
@@ -498,15 +498,6 @@ export default function PaymentModule({ currentUser }: PaymentModuleProps) {
                             className="hidden"
                           />
                         </label>
-                        
-                        <button
-                          type="button"
-                          onClick={handleGenerateMockProof}
-                          className="px-3 bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer"
-                          title="Simular comprobante automáticamente para pruebas rápidas"
-                        >
-                          Generar de Prueba
-                        </button>
                       </div>
                     </div>
                   </div>

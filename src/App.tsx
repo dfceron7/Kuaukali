@@ -16,6 +16,7 @@ import PropertyManagement from "./components/PropertyManagement";
 import VisitorManagement from "./components/VisitorManagement";
 import GuardPanel from "./components/GuardPanel";
 import PaymentModule from "./components/PaymentModule";
+import ConfigurationPanel from "./components/ConfigurationPanel";
 import { 
   Calendar, 
   Building, 
@@ -977,7 +978,7 @@ export default function App() {
                 </button>
               )}
 
-              {currentUser.role === "admin" && (
+              {(currentUser.role === "admin" || currentUser.role === "directiva") && (
                 <>
                   <button
                     id="bar-tab-admin"
@@ -1026,6 +1027,20 @@ export default function App() {
                   >
                     Monitoreo Visitas
                   </button>
+
+                  {(currentUser.role === "directiva" || currentUser.id === "u_admin") && (
+                    <button
+                      id="bar-tab-config"
+                      onClick={() => setActiveTab("config")}
+                      className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+                        activeTab === "config"
+                          ? "bg-slate-900 text-white"
+                          : "text-slate-600 hover:text-slate-950"
+                      }`}
+                    >
+                      Configuración
+                    </button>
+                  )}
                 </>
               )}
 
@@ -1040,7 +1055,7 @@ export default function App() {
               >
                 {currentUser.role === "resident" 
                   ? "Pagos de Vigilancia" 
-                  : currentUser.role === "admin" 
+                  : (currentUser.role === "admin" || currentUser.role === "directiva") 
                   ? "Control de Pagos" 
                   : "Matriz de Solvencia"}
               </button>
@@ -1106,18 +1121,18 @@ export default function App() {
               />
             )}
 
-            {activeTab === "admin" && currentUser.role === "admin" && (
+            {activeTab === "admin" && (currentUser.role === "admin" || currentUser.role === "directiva") && (
               <AdminPanel
                 reservations={reservations}
                 onActionTriggered={fetchReservations}
               />
             )}
 
-            {activeTab === "users" && currentUser.role === "admin" && (
+            {activeTab === "users" && (currentUser.role === "admin" || currentUser.role === "directiva") && (
               <UserManagement currentUser={currentUser} />
             )}
 
-            {activeTab === "properties" && currentUser.role === "admin" && (
+            {activeTab === "properties" && (currentUser.role === "admin" || currentUser.role === "directiva") && (
               <PropertyManagement />
             )}
 
@@ -1132,7 +1147,7 @@ export default function App() {
               />
             )}
 
-            {activeTab === "guard" && (currentUser.role === "vigilante" || currentUser.role === "admin") && (
+            {activeTab === "guard" && (currentUser.role === "vigilante" || currentUser.role === "admin" || currentUser.role === "directiva") && (
               <GuardPanel currentUser={currentUser} />
             )}
 
@@ -1142,6 +1157,10 @@ export default function App() {
 
             {activeTab === "emails" && currentUser.role !== "vigilante" && <EmailSimulator currentUser={currentUser} />}
 
+            {activeTab === "config" && (currentUser.role === "directiva" || currentUser.id === "u_admin") && (
+              <ConfigurationPanel currentUser={currentUser} />
+            )}
+
           </div>
         )}
       </main>
@@ -1149,9 +1168,9 @@ export default function App() {
       {/* Footer footer information area */}
       <footer className="bg-white border-t border-slate-200 py-6 mt-12">
         <div className="max-w-7xl mx-auto px-4 text-center text-xs text-slate-400 font-mono">
-          <p>© 2026 Girasol Residencial KuauKali. Todos los derechos reservados.</p>
+          <p>© 2026 Residencial KuauKali, todos los derechos reservados.</p>
           <p className="mt-1">
-            Diseñado bajo normativas estrictas de aforo y tiempos de descanso Casa Club.
+            Diseñado bajo las normativas de junta directiva y acuerdos con residentes.
           </p>
         </div>
       </footer>

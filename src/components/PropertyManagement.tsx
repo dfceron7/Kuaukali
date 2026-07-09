@@ -20,7 +20,12 @@ import {
   Calendar, 
   DollarSign, 
   UserX, 
-  CheckCircle 
+  CheckCircle,
+  Upload,
+  CreditCard,
+  Coins,
+  FileText,
+  Image as ImageIcon
 } from "lucide-react";
 
 interface Property {
@@ -73,6 +78,14 @@ export default function PropertyManagement() {
   const [propertyDetails, setPropertyDetails] = useState<PropertyDetails | null>(null);
   const [loadingDetails, setLoadingDetails] = useState<boolean>(false);
 
+  // Office payment states
+  const [payMonths, setPayMonths] = useState<string[]>([]);
+  const [payMethod, setPayMethod] = useState<string>("Efectivo");
+  const [payReference, setPayReference] = useState<string>("");
+  const [payProofName, setPayProofName] = useState<string>("");
+  const [payProofUrl, setPayProofUrl] = useState<string>("");
+  const [paying, setPaying] = useState<boolean>(false);
+
   const fetchProperties = async () => {
     setLoading(true);
     try {
@@ -95,6 +108,13 @@ export default function PropertyManagement() {
   const fetchPropertyDetails = async (id: string) => {
     setLoadingDetails(true);
     setError(null);
+    // Clear payment form state when loading a different property
+    setPayMonths([]);
+    setPayMethod("Efectivo");
+    setPayReference("");
+    setPayProofName("");
+    setPayProofUrl("");
+    
     try {
       const res = await fetch(`/api/properties/${id}/details`);
       if (res.ok) {
@@ -110,6 +130,80 @@ export default function PropertyManagement() {
     } finally {
       setLoadingDetails(false);
     }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setPayProofName(file.name);
+    const reader = new FileReader();
+    reader.onload = () => {
+      setPayProofUrl(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRegisterPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+
+    if (!selectedPropertyId || !propertyDetails) return;
+
+    if (payMonths.length === 0) {
+      setError("Debe seleccionar al menos un mes para registrar el pago.");
+      return;
+    }
+
+    if (!payReference.trim()) {
+      setError("El número de comprobante es requerido.");
+      return;
+    }
+
+    setPaying(true);
+    try {
+      const res = await fetch(`/api/admin/properties/${selectedPropertyId}/pay`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          months: payMonths,
+          paymentMethod: payMethod,
+          transactionReference: payReference,
+          proofFileUrl: payProofUrl,
+          amount: payMonths.length * 50 // Standard $50 USD per month fee
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setSuccess(`¡Pago registrado y conciliado exitosamente para ${propertyDetails.property.name}! Se aplicó a los meses: ${payMonths.join(", ")}.`);
+        setPropertyDetails(data.details);
+        
+        // Clear payment form
+        setPayMonths([]);
+        setPayReference("");
+        setPayProofName("");
+        setPayProofUrl("");
+        
+        // Refresh property list to update green/red status tags
+        fetchProperties();
+      } else {
+        const err = await res.json();
+        setError(err.error || "No se pudo registrar el pago.");
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Error de red al registrar el pago.");
+    } finally {
+      setPaying(false);
+    }
+  };
+
+  const toggleMonthSelection = (month: string) => {
+    setPayMonths((prev) =>
+      prev.includes(month) ? prev.filter((m) => m !== month) : [...prev, month]
+    );
   };
 
   useEffect(() => {
@@ -595,7 +689,8 @@ export default function PropertyManagement() {
               <span className="ml-2 text-xs font-semibold text-slate-500">Obteniendo información consolidada...</span>
             </div>
           ) : propertyDetails ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               
               {/* Card 1: Encargado de Inmueble */}
               <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-3">
@@ -707,6 +802,188 @@ export default function PropertyManagement() {
               </div>
 
             </div>
+
+            {/* In-Person Office Payment Form */}
+            {propertyDetails.paymentStatus.pendingMonths.length > 0 ? (
+              <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-2xs space-y-4">
+                <div className="border-b border-slate-150 pb-3">
+                  <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
+                    <Coins className="h-5 w-5 text-amber-500" /> Registrar Recibo de Pago (Efectivo / Tarjeta)
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Utilice este formulario cuando el residente cancele su cuota directamente en oficina. Los meses seleccionados se registrarán y conciliarán inmediatamente con el estado <strong>Aprobado</strong>.
+                  </p>
+                </div>
+
+                <form onSubmit={handleRegisterPayment} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Left Side: Select Months to Pay */}
+                  <div className="space-y-3">
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide">
+                      1. Seleccione los meses a pagar:
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[220px] overflow-y-auto p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                      {propertyDetails.paymentStatus.pendingMonths.map((month) => {
+                        const isChecked = payMonths.includes(month);
+                        return (
+                          <button
+                            type="button"
+                            key={month}
+                            onClick={() => toggleMonthSelection(month)}
+                            className={`flex items-center gap-2 p-2.5 rounded-lg border text-xs font-semibold text-left transition-all cursor-pointer ${
+                              isChecked
+                                ? "bg-amber-500 border-amber-600 text-slate-950 shadow-xs"
+                                : "bg-white hover:bg-slate-50 border-slate-200 text-slate-700"
+                            }`}
+                          >
+                            <span className={`w-4 h-4 rounded flex items-center justify-center border ${
+                              isChecked ? "border-slate-950 bg-slate-950 text-amber-500" : "border-slate-300"
+                            }`}>
+                              {isChecked && <Check className="h-3 w-3 stroke-[3px]" />}
+                            </span>
+                            {month}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {payMonths.length > 0 && (
+                      <div className="bg-slate-950 text-white rounded-lg p-3 text-xs flex justify-between items-center">
+                        <div>
+                          <span className="block text-[10px] text-slate-400 font-bold uppercase">Monto Total a Registrar</span>
+                          <span className="text-sm font-extrabold text-amber-400">${payMonths.length * 50}.00 USD</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="block text-[10px] text-slate-400 font-bold uppercase">Meses seleccionados</span>
+                          <span className="font-bold text-slate-200">{payMonths.length}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right Side: Payment details */}
+                  <div className="space-y-4">
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide">
+                      2. Detalles de la Transacción:
+                    </label>
+
+                    {/* Payment Method Option */}
+                    <div>
+                      <span className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Método de Pago *</span>
+                      <div className="flex gap-2">
+                        {[
+                          { id: "Efectivo", icon: Coins, label: "Efectivo" },
+                          { id: "Tarjeta", icon: CreditCard, label: "Tarjeta (Card)" }
+                        ].map((method) => {
+                          const isSelected = payMethod === method.id;
+                          const Icon = method.icon;
+                          return (
+                            <button
+                              type="button"
+                              key={method.id}
+                              onClick={() => setPayMethod(method.id)}
+                              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border text-xs font-bold transition-all cursor-pointer ${
+                                isSelected
+                                  ? "bg-slate-900 border-slate-950 text-white shadow-xs"
+                                  : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-600"
+                              }`}
+                            >
+                              <Icon className="h-4 w-4" />
+                              {method.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Receipt Number */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">
+                        Número de Comprobante / Recibo de Oficina *
+                      </label>
+                      <div className="relative">
+                        <FileText className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                        <input
+                          type="text"
+                          required
+                          placeholder="Ej. REC-OFF-09283"
+                          value={payReference}
+                          onChange={(e) => setPayReference(e.target.value)}
+                          className="w-full text-xs pl-10 pr-3 py-2.5 rounded-lg border border-slate-300 bg-slate-50 focus:bg-white focus:outline-hidden focus:border-amber-500 text-slate-900 font-medium"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Proof File (Optional, as the user requested) */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">
+                        Foto / Imagen de Respaldo (Opcional)
+                      </label>
+                      <div className="flex gap-2">
+                        <label className="flex-1 border border-slate-300 hover:border-slate-400 bg-slate-50 hover:bg-slate-100/50 rounded-lg px-3 py-2.5 text-xs text-slate-500 flex items-center justify-center space-x-1.5 cursor-pointer font-bold select-none">
+                          <Upload className="h-4 w-4 text-slate-400" />
+                          <span className="truncate">{payProofName || "Subir foto (Opcional)"}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleFileChange}
+                            className="hidden"
+                          />
+                        </label>
+                        {payProofUrl && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPayProofName("");
+                              setPayProofUrl("");
+                            }}
+                            className="px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer"
+                          >
+                            Eliminar foto
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-1 italic">
+                        La fotografía del comprobante físico o voucher de tarjeta no es obligatoria para pagos directos de oficina.
+                      </p>
+                    </div>
+
+                    {/* Submit Button */}
+                    <button
+                      type="submit"
+                      disabled={paying || payMonths.length === 0}
+                      className={`w-full text-white rounded-lg py-2.5 text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm ${
+                        payMonths.length === 0 
+                          ? "bg-slate-300 text-slate-500 cursor-not-allowed"
+                          : paying 
+                            ? "bg-slate-800" 
+                            : "bg-emerald-600 hover:bg-emerald-700"
+                      }`}
+                    >
+                      {paying ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Registrando pago...
+                        </>
+                      ) : (
+                        <>
+                          <Check className="h-4 w-4" />
+                          Registrar pago
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            ) : (
+              <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-5 text-center">
+                <CheckCircle className="h-8 w-8 text-emerald-600 mx-auto mb-2" />
+                <h4 className="text-xs font-bold text-emerald-950 uppercase tracking-wide">Inmueble Solvente</h4>
+                <p className="text-[11px] text-emerald-700 mt-0.5">
+                  Este inmueble no registra cuotas pendientes de pago. Se encuentra totalmente solvente al día de hoy.
+                </p>
+              </div>
+            )}
+
+          </div>
           ) : (
             <div className="text-center py-6">
               <p className="text-xs text-rose-500">Error al cargar la información.</p>

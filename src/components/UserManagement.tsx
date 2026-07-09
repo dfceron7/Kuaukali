@@ -22,7 +22,7 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
   const [password, setPassword] = useState<string>("");
   const [house, setHouse] = useState<string>("");
   const [email, setEmail] = useState<string>("");
-  const [role, setRole] = useState<"resident" | "admin" | "vigilante">("resident");
+  const [role, setRole] = useState<"resident" | "admin" | "vigilante" | "directiva">("resident");
 
   // Editing and Reset states
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -357,7 +357,7 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
               <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">
                 Rol
               </label>
-              <div className="flex space-x-1.5">
+              <div className="flex space-x-1.5 flex-wrap gap-y-1.5">
                 <button
                   type="button"
                   onClick={() => {
@@ -404,8 +404,26 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
                 >
                   Admin
                 </button>
+                {(currentUser.id === "u_admin" || currentUser.role === "directiva") && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRole("directiva");
+                      if (!house || house === "Caseta de Vigilancia") {
+                        setHouse("Administración");
+                      }
+                    }}
+                    className={`flex-1 text-xs py-2 rounded-lg font-bold border transition-all cursor-pointer ${
+                      role === "directiva"
+                        ? "bg-purple-600 border-purple-600 text-white"
+                        : "bg-slate-50 border-slate-300 text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    Directiva
+                  </button>
+                )}
               </div>
-              <p className="text-[10px] text-slate-400 mt-1">Los residentes pueden reservar; los vigilantes controlan entradas; administradores regulan.</p>
+              <p className="text-[10px] text-slate-400 mt-1">Los residentes pueden reservar; los vigilantes controlan entradas; administradores y junta directiva regulan.</p>
             </div>
 
             <div>
@@ -541,13 +559,15 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
                       <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider ${
                         u.id === "u_admin"
                           ? "bg-amber-500 text-slate-950 ring-1 ring-amber-400"
+                          : u.role === "directiva"
+                          ? "bg-purple-100 text-purple-900 border border-purple-200"
                           : u.role === "admin"
                           ? "bg-amber-100 text-amber-900"
                           : u.role === "vigilante"
                           ? "bg-teal-100 text-teal-900"
                           : "bg-slate-100 text-slate-800"
                       }`}>
-                        {u.id === "u_admin" ? "System Admin" : u.role === "admin" ? "Administrador" : u.role === "vigilante" ? "Vigilante" : "Residente"}
+                        {u.id === "u_admin" ? "System Admin" : u.role === "directiva" ? "Directiva" : u.role === "admin" ? "Administrador" : u.role === "vigilante" ? "Vigilante" : "Residente"}
                       </span>
                     </td>
                     <td className="px-6 py-4">

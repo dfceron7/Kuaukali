@@ -5,7 +5,7 @@
 
 import React, { useState } from "react";
 import { Reservation, ReservationStatus } from "../types";
-import { ShieldAlert, AlertTriangle, Eye, Check, X, Calendar, DollarSign, Clock, Users, RefreshCw, FileText, Ban, RotateCcw } from "lucide-react";
+import { ShieldAlert, AlertTriangle, Eye, Check, X, Calendar, DollarSign, Clock, Users, RefreshCw, FileText, Ban, RotateCcw, MessageSquare, Copy, CheckCheck } from "lucide-react";
 
 interface AdminPanelProps {
   reservations: Reservation[];
@@ -18,6 +18,47 @@ export default function AdminPanel({ reservations, onActionTriggered }: AdminPan
   const [rejectionReason, setRejectionReason] = useState<string>("");
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState<boolean>(false);
+  const [exportMonth, setExportMonth] = useState<string>("08"); // Default August (08)
+  const [exportYear, setExportYear] = useState<string>("2026"); // Default 2026
+  const [copiedSuccess, setCopiedSuccess] = useState<boolean>(false);
+
+  const monthsEngAbbr = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const monthsList = [
+    { value: "01", label: "Enero" },
+    { value: "02", label: "Febrero" },
+    { value: "03", label: "Marzo" },
+    { value: "04", label: "Abril" },
+    { value: "05", label: "Mayo" },
+    { value: "06", label: "Junio" },
+    { value: "07", label: "Julio" },
+    { value: "08", label: "Agosto" },
+    { value: "09", label: "Septiembre" },
+    { value: "10", label: "Octubre" },
+    { value: "11", label: "Noviembre" },
+    { value: "12", label: "Diciembre" }
+  ];
+
+  function formatDateToWhatsApp(dateStr: string): string {
+    if (!dateStr) return "";
+    const parts = dateStr.split("-");
+    if (parts.length !== 3) return dateStr;
+    const year = parts[0];
+    const monthIdx = parseInt(parts[1], 10) - 1;
+    const day = parts[2];
+    const monthLabel = monthsEngAbbr[monthIdx] || parts[1];
+    return `${day}-${monthLabel}-${year}`;
+  }
+
+  function formatTimeWithSeconds(timeStr: string): string {
+    if (!timeStr) return "";
+    const parts = timeStr.split(":");
+    if (parts.length === 2) {
+      return `${timeStr}:00`;
+    }
+    return timeStr;
+  }
 
   const pendingList = reservations.filter((r) => r.status === "pending");
   const approvedList = reservations.filter((r) => r.status === "approved");
@@ -118,17 +159,10 @@ export default function AdminPanel({ reservations, onActionTriggered }: AdminPan
     }
   };
 
-  const resetAllDb = async () => {
-    if (confirm("¿Estás seguro que deseas restablecer la base de datos de reservas?")) {
-      await fetch("/api/admin/reset", { method: "POST" });
-      onActionTriggered();
-    }
-  };
-
   return (
     <div className="space-y-8">
       {/* Quick visual KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-slate-900 text-white p-5 rounded-xl border border-slate-800">
           <span className="text-xs text-slate-400 font-mono block uppercase">Pendientes de Acción</span>
           <div className="flex items-baseline space-x-2 mt-1">
@@ -155,14 +189,13 @@ export default function AdminPanel({ reservations, onActionTriggered }: AdminPan
 
         <div className="bg-white p-5 rounded-xl border border-slate-200 flex flex-col justify-between">
           <div>
-            <span className="text-xs text-slate-500 font-mono block uppercase">Mantenimiento de Datos</span>
+            <span className="text-xs text-slate-500 font-mono block uppercase">Exportación WhatsApp</span>
             <button
-              id="btn-fase-reset"
-              onClick={resetAllDb}
-              className="mt-2 text-xs text-slate-500 hover:text-amber-500 transition-colors flex items-center space-x-1 font-semibold"
+              onClick={() => setShowWhatsAppModal(true)}
+              className="mt-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-3 rounded-lg text-xs flex items-center justify-center space-x-1.5 transition-all cursor-pointer shadow-3xs"
             >
-              <RefreshCw className="h-3 w-3" />
-              <span>Restablecer estados demo</span>
+              <MessageSquare className="h-3.5 w-3.5" />
+              <span>Exportar para WhatsApp</span>
             </button>
           </div>
         </div>
@@ -446,6 +479,217 @@ export default function AdminPanel({ reservations, onActionTriggered }: AdminPan
               <button
                 onClick={() => setSelectedProofUrl(null)}
                 className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-lg"
+              >
+                Cerrar Ventana
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* WhatsApp Export Modal */}
+      {showWhatsAppModal && (
+        <div id="whatsapp-export-modal" className="fixed inset-0 bg-slate-950/75 z-55 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden border border-slate-200 shadow-2xl relative flex flex-col max-h-[90vh]">
+            
+            {/* Header */}
+            <div className="bg-emerald-600 px-6 py-4 flex items-center justify-between text-white shrink-0">
+              <span className="font-bold font-sans text-sm flex items-center space-x-2">
+                <MessageSquare className="text-white h-5 w-5" />
+                <span>Exportar Reservas para WhatsApp</span>
+              </span>
+              <button
+                id="btn-close-whatsapp-modal"
+                onClick={() => {
+                  setShowWhatsAppModal(false);
+                  setCopiedSuccess(false);
+                }}
+                className="p-1 text-emerald-100 hover:text-white rounded hover:bg-emerald-700 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="p-6 overflow-y-auto space-y-6">
+              
+              {/* Select Month and Year */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-center gap-4">
+                <div className="w-full sm:w-1/2">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5 font-mono">
+                    Seleccionar Mes:
+                  </label>
+                  <select
+                    value={exportMonth}
+                    onChange={(e) => {
+                      setExportMonth(e.target.value);
+                      setCopiedSuccess(false);
+                    }}
+                    className="w-full pl-3 pr-8 py-2 text-xs font-bold rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-hidden focus:border-emerald-500 cursor-pointer"
+                  >
+                    {monthsList.map(m => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="w-full sm:w-1/2">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5 font-mono">
+                    Seleccionar Año:
+                  </label>
+                  <select
+                    value={exportYear}
+                    onChange={(e) => {
+                      setExportYear(e.target.value);
+                      setCopiedSuccess(false);
+                    }}
+                    className="w-full pl-3 pr-8 py-2 text-xs font-bold rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-hidden focus:border-emerald-500 cursor-pointer"
+                  >
+                    <option value="2026">2026</option>
+                    <option value="2027">2027</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Filtering results */}
+              <div>
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide font-mono mb-3">
+                  Vista de reservas encontradas ({
+                    reservations.filter(r => {
+                      if (r.status !== "approved") return false;
+                      const parts = r.date.split("-");
+                      return parts[0] === exportYear && parts[1] === exportMonth;
+                    }).length
+                  })
+                </h4>
+
+                {(() => {
+                  const filtered = reservations
+                    .filter(r => {
+                      if (r.status !== "approved") return false;
+                      const parts = r.date.split("-");
+                      return parts[0] === exportYear && parts[1] === exportMonth;
+                    })
+                    .sort((a, b) => {
+                      if (a.date !== b.date) return a.date.localeCompare(b.date);
+                      return a.startTime.localeCompare(b.startTime);
+                    });
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="py-8 bg-slate-50 text-center rounded-xl border border-dashed border-slate-300 text-slate-400 text-xs italic">
+                        No hay reservas aprobadas/confirmadas para el mes seleccionado.
+                      </div>
+                    );
+                  }
+
+                  const textToCopyVal = filtered.map(row => {
+                    return `${row.userName || "N/A"} | ${row.house} | ${formatDateToWhatsApp(row.date)} | ${formatTimeWithSeconds(row.startTime)} | ${formatTimeWithSeconds(row.endTime)}`;
+                  }).join("\n");
+
+                  return (
+                    <div className="space-y-4">
+                      {/* Visual Table */}
+                      <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white shadow-3xs">
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200 font-mono">
+                              <th className="px-4 py-2.5">Propietario</th>
+                              <th className="px-4 py-2.5">Casa o Lote</th>
+                              <th className="px-4 py-2.5">Fecha del Evento</th>
+                              <th className="px-4 py-2.5">Hora de Inicio</th>
+                              <th className="px-4 py-2.5">Hora de Fin</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-150 font-sans text-slate-700">
+                            {filtered.map((row, idx) => (
+                              <tr key={idx} className="hover:bg-slate-50/50">
+                                <td className="px-4 py-2.5 font-bold text-slate-900">{row.userName || "N/A"}</td>
+                                <td className="px-4 py-2.5 text-slate-700 font-semibold">{row.house}</td>
+                                <td className="px-4 py-2.5 font-mono text-xs">{formatDateToWhatsApp(row.date)}</td>
+                                <td className="px-4 py-2.5 font-mono text-xs text-slate-600 font-bold">
+                                  {formatTimeWithSeconds(row.startTime)}
+                                </td>
+                                <td className="px-4 py-2.5 font-mono text-xs text-slate-600 font-bold">
+                                  {formatTimeWithSeconds(row.endTime)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Monospaced text preview to copy */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide font-mono">
+                            Texto para Whatsapp (Formato exacto):
+                          </label>
+                          <span className="text-[10px] text-slate-400 font-medium font-mono">Copia y pega en WhatsApp</span>
+                        </div>
+                        <div className="relative">
+                          <textarea
+                            id="whatsapp-raw-text"
+                            readOnly
+                            value={textToCopyVal}
+                            className="w-full h-40 p-4 font-mono text-xs text-slate-200 bg-slate-950 rounded-xl border border-slate-800 focus:outline-hidden resize-none leading-relaxed"
+                          />
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(textToCopyVal)
+                                .then(() => {
+                                  setCopiedSuccess(true);
+                                  setTimeout(() => setCopiedSuccess(false), 3000);
+                                })
+                                .catch(() => {
+                                  // Fallback manual
+                                  const tx = document.getElementById("whatsapp-raw-text") as HTMLTextAreaElement;
+                                  if (tx) {
+                                    tx.select();
+                                    document.execCommand("copy");
+                                    setCopiedSuccess(true);
+                                    setTimeout(() => setCopiedSuccess(false), 3000);
+                                  }
+                                });
+                            }}
+                            className={`absolute top-3 right-3 p-2 rounded-lg border transition-all flex items-center space-x-1 text-xs font-bold cursor-pointer shadow-sm ${
+                              copiedSuccess
+                                ? "bg-emerald-600 text-white border-emerald-500"
+                                : "bg-slate-900 text-white border-slate-800 hover:bg-slate-800"
+                            }`}
+                          >
+                            {copiedSuccess ? (
+                              <>
+                                <CheckCheck className="h-4 w-4 shrink-0" />
+                                <span>¡Copiado!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="h-4 w-4 shrink-0" />
+                                <span>Copiar Tabla</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 flex justify-between items-center bg-slate-100 border-t border-slate-200 shrink-0">
+              <span className="text-[10px] text-slate-500 font-medium">
+                Pega este formato directo en WhatsApp para mantener a los residentes informados.
+              </span>
+              <button
+                onClick={() => {
+                  setShowWhatsAppModal(false);
+                  setCopiedSuccess(false);
+                }}
+                className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-lg cursor-pointer"
               >
                 Cerrar Ventana
               </button>

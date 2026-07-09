@@ -7,7 +7,7 @@ export interface User {
   id: string;
   username: string; // e.g., "admin", "casa101", "casa204"
   house: string; // e.g., "Casa 101" or "Admin"
-  role: 'resident' | 'admin' | 'vigilante';
+  role: 'resident' | 'admin' | 'vigilante' | 'directiva';
   email: string;
   isActive?: boolean;
   isTemporaryPassword?: boolean;

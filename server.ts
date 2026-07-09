@@ -44,6 +44,7 @@ interface DBStructure {
   visitorPasses?: any[];
   payments?: any[];
   properties?: any[];
+  config?: any;
 }
 
 // Seed Data
@@ -596,6 +597,140 @@ app.delete("/api/properties/:id", (req, res) => {
   saveDB(db);
 
   res.json({ success: true, message: "Inmueble eliminado exitosamente." });
+});
+
+// Admin registers direct payment for a property
+app.post("/api/admin/properties/:id/pay", (req, res) => {
+  const { id } = req.params;
+  const { months, paymentMethod, transactionReference, proofFileUrl, amount } = req.body;
+
+  const property = (db.properties || []).find((p) => p.id === id);
+  if (!property) {
+    return res.status(404).json({ error: "Inmueble no encontrado." });
+  }
+
+  if (!months || !Array.isArray(months) || months.length === 0) {
+    return res.status(400).json({ error: "Debe seleccionar al menos un mes a pagar." });
+  }
+
+  if (!transactionReference || !transactionReference.trim()) {
+    return res.status(400).json({ error: "El número de comprobante es requerido." });
+  }
+
+  // Find a user associated with this property if any
+  const associatedUser = (db.users || []).find(u => u.house && u.house.toLowerCase() === property.name.toLowerCase());
+  const userId = associatedUser ? associatedUser.id : "admin_direct";
+  const userName = associatedUser ? associatedUser.username : (property.ownerName || "Administración");
+  const userEmail = associatedUser ? associatedUser.email : "contacto_inmueble@kuaukali.com";
+
+  const correlativeNum = (db.payments || []).length + 1;
+  const correlative = `REC-2026-${String(correlativeNum).padStart(4, "0")}`;
+  const passCode = `VP-${Math.floor(10000 + Math.random() * 90000)}`;
+
+  const newPayment = {
+    id: "pay_" + Math.random().toString(36).substring(2, 9),
+    userId,
+    userName,
+    house: property.name,
+    userEmail,
+    months,
+    amount: amount || (months.length * 50),
+    correlative,
+    passCode,
+    transactionReference: transactionReference.trim(),
+    proofFileName: "pago_administracion.jpg",
+    proofFileUrl: proofFileUrl || "",
+    status: "approved", // Directly approved by admin
+    paymentMethod: paymentMethod || "Efectivo",
+    processedAt: new Date().toISOString(),
+    createdAt: new Date().toISOString()
+  };
+
+  if (!db.payments) {
+    db.payments = [];
+  }
+  db.payments.push(newPayment);
+  saveDB(db);
+
+  // Send virtual email receipt (same style as other approved payments)
+  let subject = `✓ Comprobante de Pago Aprobado - Recibo ${newPayment.correlative} - KuauKali`;
+  let bodyHtml = `
+    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px; color: #1e293b;">
+      <div style="text-align: center; border-bottom: 2px dashed #cbd5e1; padding-bottom: 16px;">
+        <span style="font-size: 11px; font-weight: bold; color: #f59e0b; text-transform: uppercase; letter-spacing: 0.1em;">Residencial KuauKali</span>
+        <h2 style="margin: 6px 0 0 0; color: #0d9488; text-transform: uppercase;">RECIBO VIRTUAL DE PAGO (ADMINISTRACIÓN)</h2>
+        <p style="margin: 4px 0 0 0; font-size: 11px; color: #10b981; font-weight: bold;">✓ PAGO COMPROBADO Y CONCILIADO EN OFICINA</p>
+      </div>
+      
+      <div style="padding: 20px 0; font-size: 13px; line-height: 1.6;">
+        <p>Estimado(a) residente de la <strong>${newPayment.house}</strong>,</p>
+        <p>Le informamos que la administración ha registrado y validado su pago directo en oficina. Su cuenta de vigilancia se encuentra al día para los meses cancelados.</p>
+        
+        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin: 20px 0;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+            <tr>
+              <td style="color: #64748b; padding: 4px 0;">Correlativo Recibo:</td>
+              <td style="text-align: right; font-weight: bold; color: #0f172a;">${newPayment.correlative}</td>
+            </tr>
+            <tr>
+              <td style="color: #64748b; padding: 4px 0;">Método de Pago:</td>
+              <td style="text-align: right; font-weight: bold; color: #0f172a;">${newPayment.paymentMethod}</td>
+            </tr>
+            <tr>
+              <td style="color: #64748b; padding: 4px 0;">Número de Referencia / Comprobante:</td>
+              <td style="text-align: right; font-weight: bold; font-family: monospace; color: #0f172a;">${newPayment.transactionReference}</td>
+            </tr>
+            <tr>
+              <td style="color: #64748b; padding: 4px 0;">Destino / Casa:</td>
+              <td style="text-align: right; font-weight: bold; color: #0f172a;">${newPayment.house}</td>
+            </tr>
+            <tr>
+              <td style="color: #64748b; padding: 4px 0;">Meses Cancelados:</td>
+              <td style="text-align: right; font-weight: bold; color: #0f172a;">${newPayment.months.join(", ")}</td>
+            </tr>
+            <tr>
+              <td style="color: #64748b; padding: 4px 0; font-weight: bold;">Monto Total:</td>
+              <td style="text-align: right; font-weight: bold; color: #0d9488; font-size: 14px;">$${newPayment.amount}.00 USD</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  `;
+
+  if (!db.emails) {
+    db.emails = [];
+  }
+  db.emails.push({
+    id: "mail_" + Math.random().toString(36).substring(2, 9),
+    to: userEmail,
+    subject,
+    bodyHtml,
+    timestamp: new Date().toISOString(),
+    status: "sent"
+  });
+
+  saveDB(db);
+
+  const users = (db.users || []).filter(u => u.house && u.house.toLowerCase() === property.name.toLowerCase()).map(u => ({
+    id: u.id,
+    username: u.username,
+    email: u.email,
+    role: u.role,
+    isActive: u.isActive !== false
+  }));
+
+  const paymentStatus = getHousePaymentStatus(property.name);
+
+  res.json({
+    success: true,
+    payment: newPayment,
+    details: {
+      property,
+      users,
+      paymentStatus
+    }
+  });
 });
 
 // Admin Password Reset with Temporary Password API
@@ -1198,7 +1333,16 @@ function getRequiredMonths(): string[] {
   // Dynamic calculation representing 2026-06-25 current month is June, past months are January to May
   const now = new Date("2026-06-25T14:57:20-07:00");
   const currentMonthIdx = now.getMonth(); // 5 for June (0-based)
-  return monthsList.slice(0, currentMonthIdx); // returns ["Enero 2026", "Febrero 2026", "Marzo 2026", "Abril 2026", "Mayo 2026"]
+  const availableMonths = monthsList.slice(0, currentMonthIdx);
+
+  // Filter based on configured start month
+  const config = db.config || {};
+  const startMonth = config.moraStartMonth || "Enero 2026";
+  const startIdx = monthsList.indexOf(startMonth);
+  if (startIdx !== -1) {
+    return availableMonths.filter(m => monthsList.indexOf(m) >= startIdx);
+  }
+  return availableMonths;
 }
 
 function getPaidMonthsForHouse(houseName: string): string[] {
@@ -1216,7 +1360,12 @@ function getHousePaymentStatus(houseName: string) {
   const required = getRequiredMonths();
   const paid = getPaidMonthsForHouse(houseName);
   const pendingMonths = required.filter((m) => !paid.includes(m));
-  const status = pendingMonths.length > 0 ? "mora" : "al_dia";
+  
+  // Use config threshold
+  const config = db.config || {};
+  const moraThreshold = typeof config.moraThresholdMonths === 'number' ? config.moraThresholdMonths : 1;
+  const status = pendingMonths.length >= moraThreshold ? "mora" : "al_dia";
+  
   return {
     house: houseName,
     status,
@@ -1432,68 +1581,137 @@ app.post("/api/payments/:id/verify", (req, res) => {
 });
 
 
-// Reset database for debugging purposes
-app.post("/api/admin/reset", (req, res) => {
-  db = {
-    users: [...defaultDB.users],
-    reservations: [...defaultDB.reservations],
-    emails: [],
-    visitorPasses: [],
-    payments: [
-      {
-        id: "pay1",
-        userId: "u2",
-        userName: "casa101",
-        house: "Casa 101",
-        userEmail: "casa101@kuaukali.com",
-        months: ["Enero 2026", "Febrero 2026", "Marzo 2026", "Abril 2026", "Mayo 2026"],
-        amount: 250,
-        correlative: "REC-2026-0001",
-        passCode: "VP-58291",
-        transactionReference: "TXN-83921029",
-        proofFileName: "pago_mayo.png",
-        proofFileUrl: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='300' viewBox='0 0 400 300'><rect width='400' height='300' fill='%23cbd5e1'/><text x='50%25' y='50%25' font-family='sans-serif' font-size='14' text-anchor='middle' fill='%23334155'>Transferencia Bancaria: REC-2026-0001 (Jan-May)</text></svg>",
-        status: "approved",
-        createdAt: "2026-05-28T10:15:30.000Z",
-        processedAt: "2026-05-28T14:30:00.000Z"
-      },
-      {
-        id: "pay2",
-        userId: "u3",
-        userName: "casa204",
-        house: "Casa 204",
-        userEmail: "casa204@kuaukali.com",
-        months: ["Enero 2026", "Febrero 2026", "Marzo 2026"],
-        amount: 150,
-        correlative: "REC-2026-0002",
-        passCode: "VP-48201",
-        transactionReference: "TXN-10294819",
-        proofFileName: "pago_marzo.png",
-        proofFileUrl: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='300' viewBox='0 0 400 300'><rect width='400' height='300' fill='%23cbd5e1'/><text x='50%25' y='50%25' font-family='sans-serif' font-size='14' text-anchor='middle' fill='%23334155'>Transferencia Bancaria: REC-2026-0002 (Jan-Mar)</text></svg>",
-        status: "approved",
-        createdAt: "2026-03-25T11:00:00.000Z",
-        processedAt: "2026-03-25T15:10:00.000Z"
-      },
-      {
-        id: "pay3",
-        userId: "u3",
-        userName: "casa204",
-        house: "Casa 204",
-        userEmail: "casa204@kuaukali.com",
-        months: ["Abril 2026", "Mayo 2026"],
-        amount: 100,
-        correlative: "REC-2026-0003",
-        passCode: "VP-93210",
-        transactionReference: "TXN-49201948",
-        proofFileName: "transfer_abril_mayo.png",
-        proofFileUrl: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='300' viewBox='0 0 400 300'><rect width='400' height='300' fill='%23cbd5e1'/><text x='50%25' y='50%25' font-family='sans-serif' font-size='14' text-anchor='middle' fill='%23334155'>Transferencia Bancaria: REC-2026-0003 (Apr-May)</text></svg>",
-        status: "pending",
-        createdAt: new Date().toISOString()
+// Reset database to complete zero (only sys admin u_admin)
+app.post("/api/admin/reset", async (req, res) => {
+  try {
+    console.log("🧹 [SISTEMA] Iniciando restablecimiento total a cero solicitado...");
+    
+    // 1. Delete all existing elements from Firestore to avoid orphaned documents
+    // Users
+    try {
+      const fireUsers = await loadFromFirestore("users") || [];
+      for (const u of fireUsers) {
+        await deleteFromFirestore("users", u.id);
       }
+    } catch (e) { console.error("Error clearing users:", e); }
+
+    // Reservations
+    try {
+      const fireRes = await loadFromFirestore("reservations") || [];
+      for (const r of fireRes) {
+        await deleteFromFirestore("reservations", r.id);
+      }
+    } catch (e) { console.error("Error clearing reservations:", e); }
+
+    // Emails
+    try {
+      const fireEmails = await loadFromFirestore("emails") || [];
+      for (const em of fireEmails) {
+        await deleteFromFirestore("emails", em.id);
+      }
+    } catch (e) { console.error("Error clearing emails:", e); }
+
+    // Visitor Passes
+    try {
+      const firePasses = await loadFromFirestore("visitorPasses") || [];
+      for (const p of firePasses) {
+        await deleteFromFirestore("visitorPasses", p.id);
+      }
+    } catch (e) { console.error("Error clearing visitorPasses:", e); }
+
+    // Payments
+    try {
+      const firePayments = await loadFromFirestore("payments") || [];
+      for (const py of firePayments) {
+        await deleteFromFirestore("payments", py.id);
+      }
+    } catch (e) { console.error("Error clearing payments:", e); }
+
+    // Properties
+    try {
+      const fireProps = await loadFromFirestore("properties") || [];
+      for (const pr of fireProps) {
+        await deleteFromFirestore("properties", pr.id);
+      }
+    } catch (e) { console.error("Error clearing properties:", e); }
+
+    // 2. Set database to pure clean state
+    db = {
+      users: [
+        { 
+          id: "u_admin", 
+          username: "diego7ceron@gmail.com", 
+          password: "Kuaukali007*", 
+          role: "admin", 
+          house: "Administración", 
+          email: "diego7ceron@gmail.com", 
+          isActive: true 
+        }
+      ],
+      reservations: [],
+      emails: [],
+      visitorPasses: [],
+      payments: [],
+      properties: [], // empty properties!
+      config: {
+        moraThresholdMonths: 1,
+        moraStartMonth: "Enero 2026",
+        reservationNorms: [
+          "Duración máxima permitida: 5 horas por reserva.",
+          "Separación mínima entre eventos: 1 hora limpia de por medio.",
+          "Se requiere comprobante de transferencia bancaria visible para estudio administrativo."
+        ]
+      }
+    };
+
+    // Save locally
+    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), "utf-8");
+
+    // Save only sys admin to Firestore
+    await saveToFirestore("users", "u_admin", db.users[0]);
+
+    console.log("✅ Restablecimiento total completado exitosamente.");
+    res.json({ success: true, message: "Sistema restablecido a cero correctamente. Solo el usuario administrador ha sido conservado." });
+  } catch (err: any) {
+    console.error("Error en restablecimiento de base de datos:", err);
+    res.status(500).json({ error: "Fallo al restablecer la base de datos a cero: " + err.message });
+  }
+});
+
+
+// Configurations API
+app.get("/api/config", (req, res) => {
+  const config = db.config || {
+    moraThresholdMonths: 1,
+    moraStartMonth: "Enero 2026",
+    reservationNorms: [
+      "Duración máxima permitida: 5 horas por reserva.",
+      "Separación mínima entre eventos: 1 hora limpia de por medio.",
+      "Se requiere comprobante de transferencia bancaria visible para estudio administrativo."
     ]
   };
+  res.json(config);
+});
+
+app.post("/api/config", (req, res) => {
+  const { moraThresholdMonths, moraStartMonth, reservationNorms } = req.body;
+  
+  if (!db.config) {
+    db.config = {};
+  }
+  
+  if (moraThresholdMonths !== undefined) {
+    db.config.moraThresholdMonths = Number(moraThresholdMonths);
+  }
+  if (moraStartMonth !== undefined) {
+    db.config.moraStartMonth = moraStartMonth;
+  }
+  if (reservationNorms !== undefined && Array.isArray(reservationNorms)) {
+    db.config.reservationNorms = reservationNorms;
+  }
+  
   saveDB(db);
-  res.json({ success: true, message: "Database reset to defaults successful" });
+  res.json({ success: true, config: db.config });
 });
 
 

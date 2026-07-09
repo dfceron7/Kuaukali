@@ -1,0 +1,51 @@
+{
+  "users": [
+    {
+      "id": "u_admin",
+      "username": "diego7ceron@gmail.com",
+      "password": "Kuaukali007*",
+      "role": "admin",
+      "house": "Administración",
+      "email": "diego7ceron@gmail.com",
+      "isActive": true
+    }
+  ],
+  "reservations": [],
+  "emails": [],
+  "visitorPasses": [],
+  "payments": [],
+  "properties": [
+    {
+      "id": "prop_1",
+      "name": "Casa 101"
+    },
+    {
+      "id": "prop_2",
+      "name": "Casa 102"
+    },
+    {
+      "id": "prop_3",
+      "name": "Casa 103"
+    },
+    {
+      "id": "prop_4",
+      "name": "Casa 104"
+    },
+    {
+      "id": "prop_5",
+      "name": "Casa 105"
+    },
+    {
+      "id": "prop_6",
+      "name": "Casa 201"
+    },
+    {
+      "id": "prop_7",
+      "name": "Casa 202"
+    },
+    {
+      "id": "prop_8",
+      "name": "Administración"
+    }
+  ]
+}
