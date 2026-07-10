@@ -196,70 +196,79 @@ async function syncFromFirestoreOnBoot() {
   try {
     const fireUsers = await loadFromFirestore("users");
     
-    // Detect if we need a fresh cleanup/reset of dummy data
-    const hasOldUsers = fireUsers && fireUsers.some(u => 
-      u.username === "admin" || 
-      u.username === "casa101" || 
-      u.username === "casa204" || 
-      u.username === "casa305" || 
-      u.username === "vigilante1"
+    const isNewAdminMissing = !fireUsers || !fireUsers.some(u => 
+      u.username === "diego7ceron@gmail.com" || 
+      u.username === "TecnologiasInteractivasTI@gmail.com"
     );
-    const isNewAdminMissing = !fireUsers || !fireUsers.some(u => u.username === "diego7ceron@gmail.com");
-    const needsReset = hasOldUsers || isNewAdminMissing;
 
-    if (needsReset) {
-      console.log("🧹 [MIGRACIÓN / LIMPIEZA] Se detectaron datos antiguos de prueba. Procediendo a limpiar Firestore...");
-      
-      // 1. Delete old users from Firestore
-      if (fireUsers && fireUsers.length > 0) {
-        for (const u of fireUsers) {
-          await deleteFromFirestore("users", u.id);
-        }
-      }
-      const oldUserIds = ["u1", "u2", "u3", "u4", "u5"];
-      for (const id of oldUserIds) {
-        await deleteFromFirestore("users", id);
-      }
-
-      // 2. Delete other collections
+    // If Firestore already has users, we do NOT reset anything. We load the clean state from Firestore.
+    if (fireUsers && fireUsers.length > 0) {
+      console.log("📈 Se encontraron datos en Firestore. Sincronizando a memoria local...");
       const fireReservations = await loadFromFirestore("reservations");
-      if (fireReservations && fireReservations.length > 0) {
-        for (const r of fireReservations) {
-          await deleteFromFirestore("reservations", r.id);
-        }
-      }
-      const oldResIds = ["res1", "res2"];
-      for (const id of oldResIds) {
-        await deleteFromFirestore("reservations", id);
-      }
-
       const fireEmails = await loadFromFirestore("emails");
-      if (fireEmails && fireEmails.length > 0) {
-        for (const e of fireEmails) {
-          await deleteFromFirestore("emails", e.id);
-        }
-      }
-
       const firePasses = await loadFromFirestore("visitorPasses");
-      if (firePasses && firePasses.length > 0) {
-        for (const p of firePasses) {
-          await deleteFromFirestore("visitorPasses", p.id);
-        }
-      }
-
       const firePayments = await loadFromFirestore("payments");
-      if (firePayments && firePayments.length > 0) {
-        for (const py of firePayments) {
-          await deleteFromFirestore("payments", py.id);
-        }
-      }
-      const oldPayIds = ["pay1", "pay2", "pay3"];
-      for (const id of oldPayIds) {
-        await deleteFromFirestore("payments", id);
+      const fireProperties = await loadFromFirestore("properties");
+      const fireConfig = await loadFromFirestore("config");
+
+      db.users = fireUsers;
+      db.reservations = fireReservations || [];
+      db.emails = fireEmails || [];
+      db.visitorPasses = firePasses || [];
+      db.payments = firePayments || [];
+
+      if (fireProperties && fireProperties.length > 0) {
+        db.properties = fireProperties;
+      } else if (!db.properties || db.properties.length === 0) {
+        db.properties = defaultDB.properties;
       }
 
-      // 3. Set clean state
-      db.users = [
+      if (fireConfig && fireConfig.length > 0) {
+        const appConfigDoc = fireConfig.find(c => c.id === "app_config");
+        if (appConfigDoc) {
+          const { id, ...cleanConfig } = appConfigDoc;
+          db.config = cleanConfig;
+        }
+      }
+
+      // If for some reason the main admin accounts are missing from the existing database, append them safely
+      if (isNewAdminMissing) {
+        console.log("➕ Agregando cuentas de administración faltantes para asegurar el acceso...");
+        const admin1 = { 
+          id: "u_admin", 
+          username: "diego7ceron@gmail.com", 
+          password: "Kuaukali007*", 
+          role: "admin", 
+          house: "Administración", 
+          email: "diego7ceron@gmail.com", 
+          isActive: true 
+        };
+        const admin2 = { 
+          id: "u_admin_ti", 
+          username: "TecnologiasInteractivasTI@gmail.com", 
+          password: "Kuaukali007*", 
+          role: "admin", 
+          house: "Administración", 
+          email: "TecnologiasInteractivasTI@gmail.com", 
+          isActive: true 
+        };
+
+        if (!db.users.some(u => u.username === admin1.username)) {
+          db.users.push(admin1);
+          await saveToFirestore("users", admin1.id, admin1);
+        }
+        if (!db.users.some(u => u.username === admin2.username)) {
+          db.users.push(admin2);
+          await saveToFirestore("users", admin2.id, admin2);
+        }
+      }
+
+      fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), "utf-8");
+      console.log("✅ Base de datos local sincronizada correctamente con Firestore.");
+    } else {
+      console.log("🌱 Firestore vacío. Inicializando estado limpio de inicio con administradores y propiedades...");
+      // Initialize with default admin accounts
+      const defaultAdmins = [
         { 
           id: "u_admin", 
           username: "diego7ceron@gmail.com", 
@@ -268,8 +277,19 @@ async function syncFromFirestoreOnBoot() {
           house: "Administración", 
           email: "diego7ceron@gmail.com", 
           isActive: true 
+        },
+        { 
+          id: "u_admin_ti", 
+          username: "TecnologiasInteractivasTI@gmail.com", 
+          password: "Kuaukali007*", 
+          role: "admin", 
+          house: "Administración", 
+          email: "TecnologiasInteractivasTI@gmail.com", 
+          isActive: true 
         }
       ];
+
+      db.users = defaultAdmins;
       db.reservations = [];
       db.emails = [];
       db.visitorPasses = [];
@@ -277,42 +297,17 @@ async function syncFromFirestoreOnBoot() {
       db.properties = defaultDB.properties;
 
       fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), "utf-8");
-      await saveToFirestore("users", "u_admin", db.users[0]);
+
+      // Save seeds to Firestore
+      for (const adm of defaultAdmins) {
+        await saveToFirestore("users", adm.id, adm);
+      }
       if (db.properties) {
         for (const prop of db.properties) {
           await saveToFirestore("properties", prop.id, prop);
         }
       }
-      console.log("✅ [MIGRACIÓN / LIMPIEZA] Firestore purgado y sembrado con administrador único.");
-    } else {
-      console.log("📈 Se encontraron datos limpios en Firestore. Sincronizando...");
-      const fireReservations = await loadFromFirestore("reservations");
-      const fireEmails = await loadFromFirestore("emails");
-      const firePasses = await loadFromFirestore("visitorPasses");
-      const firePayments = await loadFromFirestore("payments");
-      const fireProperties = await loadFromFirestore("properties");
-      const fireConfig = await loadFromFirestore("config");
-
-      if (fireUsers && fireUsers.length > 0) db.users = fireUsers;
-      db.reservations = fireReservations || [];
-      db.emails = fireEmails || [];
-      db.visitorPasses = firePasses || [];
-      db.payments = firePayments || [];
-      if (fireProperties && fireProperties.length > 0) {
-        db.properties = fireProperties;
-      } else if (!db.properties || db.properties.length === 0) {
-        db.properties = defaultDB.properties;
-      }
-      if (fireConfig && fireConfig.length > 0) {
-        const appConfigDoc = fireConfig.find(c => c.id === "app_config");
-        if (appConfigDoc) {
-          const { id, ...cleanConfig } = appConfigDoc;
-          db.config = cleanConfig;
-        }
-      }
-      
-      fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), "utf-8");
-      console.log("✅ Base de datos local sincronizada.");
+      console.log("✅ Inicialización y siembra completadas.");
     }
   } catch (error) {
     console.warn("⚠️ Error en sincronización de arranque con Firestore:", error);
