@@ -17,6 +17,7 @@ import VisitorManagement from "./components/VisitorManagement";
 import GuardPanel from "./components/GuardPanel";
 import PaymentModule from "./components/PaymentModule";
 import ConfigurationPanel from "./components/ConfigurationPanel";
+import HomeDashboard from "./components/HomeDashboard";
 import { 
   Calendar, 
   Building, 
@@ -53,7 +54,7 @@ export default function App() {
   });
 
   const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [activeTab, setActiveTab] = useState<string>("calendar");
+  const [activeTab, setActiveTab] = useState<string>("home");
   const [loadingRes, setLoadingRes] = useState<boolean>(false);
 
   // Notifications & Toasts state
@@ -913,6 +914,18 @@ export default function App() {
             {/* Tab Controller for larger screen widths */}
             <div className="bg-white rounded-2xl border border-slate-200 p-3 max-w-max hidden md:flex items-center space-x-1.5 shadow-xs">
               <button
+                id="bar-tab-home"
+                onClick={() => setActiveTab("home")}
+                className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+                  activeTab === "home"
+                    ? "bg-slate-900 text-white"
+                    : "text-slate-600 hover:text-slate-950"
+                }`}
+              >
+                Inicio
+              </button>
+
+              <button
                 id="bar-tab-calendar"
                 onClick={() => setActiveTab("calendar")}
                 className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
@@ -1076,6 +1089,14 @@ export default function App() {
             </div>
 
             {/* TAB RENDERING SECTIONS */}
+            {activeTab === "home" && (
+              <HomeDashboard
+                currentUser={currentUser}
+                setActiveTab={setActiveTab}
+                pendingCount={pendingCount}
+              />
+            )}
+
             {activeTab === "calendar" && (
               <CalendarView reservations={reservations} />
             )}

@@ -125,6 +125,9 @@ async function syncCollectionsToFirestore(data: DBStructure) {
         }
       }
     }
+    if (data.config) {
+      await saveToFirestore("config", "app_config", data.config);
+    }
   } catch (err) {
     console.error("Error in background Firestore sync:", err);
   }
@@ -158,6 +161,34 @@ if (!db.visitorPasses) {
 if (!db.properties || db.properties.length === 0) {
   db.properties = defaultDB.properties;
   saveDB(db);
+}
+
+if (!db.config) {
+  db.config = {
+    moraThresholdMonths: 3,
+    moraStartMonth: "Enero 2026",
+    monthlyFee: 100,
+    feeHistory: [],
+    reservationNorms: [
+      "Duración máxima permitida: 5 horas por reserva.",
+      "Separación mínima entre eventos: 1 hora limpia de por medio.",
+      "Se requiere comprobante de transferencia bancaria visible para estudio administrativo."
+    ]
+  };
+  saveDB(db);
+} else {
+  let changed = false;
+  if (db.config.monthlyFee === 50) {
+    db.config.monthlyFee = 100;
+    changed = true;
+  }
+  if (db.config.moraThresholdMonths === 1) {
+    db.config.moraThresholdMonths = 3;
+    changed = true;
+  }
+  if (changed) {
+    saveDB(db);
+  }
 }
 
 async function syncFromFirestoreOnBoot() {
@@ -260,6 +291,7 @@ async function syncFromFirestoreOnBoot() {
       const firePasses = await loadFromFirestore("visitorPasses");
       const firePayments = await loadFromFirestore("payments");
       const fireProperties = await loadFromFirestore("properties");
+      const fireConfig = await loadFromFirestore("config");
 
       if (fireUsers && fireUsers.length > 0) db.users = fireUsers;
       db.reservations = fireReservations || [];
@@ -270,6 +302,13 @@ async function syncFromFirestoreOnBoot() {
         db.properties = fireProperties;
       } else if (!db.properties || db.properties.length === 0) {
         db.properties = defaultDB.properties;
+      }
+      if (fireConfig && fireConfig.length > 0) {
+        const appConfigDoc = fireConfig.find(c => c.id === "app_config");
+        if (appConfigDoc) {
+          const { id, ...cleanConfig } = appConfigDoc;
+          db.config = cleanConfig;
+        }
       }
       
       fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), "utf-8");
@@ -602,11 +641,19 @@ app.delete("/api/properties/:id", (req, res) => {
 // Helpers for dynamic monthly fee and historical pricing
 function getFeeForMonth(monthName: string): number {
   const ALL_MONTHS_2026 = [
-    "Enero 2026", "Febrero 2026", "Marzo 2026", "Abril 2026", "Mayo 2026", "Junio 2026",
-    "Julio 2026", "Agosto 2026", "Septiembre 2026", "Octubre 2026", "Noviembre 2026", "Diciembre 2026"
+    // 2026
+    "Enero 2026", "Febrero 2026", "Marzo 2026", "Abril 2026", "Mayo 2026", "Junio 2026", "Julio 2026", "Agosto 2026", "Septiembre 2026", "Octubre 2026", "Noviembre 2026", "Diciembre 2026",
+    // 2027
+    "Enero 2027", "Febrero 2027", "Marzo 2027", "Abril 2027", "Mayo 2027", "Junio 2027", "Julio 2027", "Agosto 2027", "Septiembre 2027", "Octubre 2027", "Noviembre 2027", "Diciembre 2027",
+    // 2028
+    "Enero 2028", "Febrero 2028", "Marzo 2028", "Abril 2028", "Mayo 2028", "Junio 2028", "Julio 2028", "Agosto 2028", "Septiembre 2028", "Octubre 2028", "Noviembre 2028", "Diciembre 2028",
+    // 2029
+    "Enero 2029", "Febrero 2029", "Marzo 2029", "Abril 2029", "Mayo 2029", "Junio 2029", "Julio 2029", "Agosto 2029", "Septiembre 2029", "Octubre 2029", "Noviembre 2029", "Diciembre 2029",
+    // 2030
+    "Enero 2030", "Febrero 2030", "Marzo 2030", "Abril 2030", "Mayo 2030", "Junio 2030", "Julio 2030", "Agosto 2030", "Septiembre 2030", "Octubre 2030", "Noviembre 2030", "Diciembre 2030"
   ];
-  if (!db.config) return 50;
-  const defaultFee = db.config.monthlyFee !== undefined ? Number(db.config.monthlyFee) : 50;
+  if (!db.config) return 100;
+  const defaultFee = db.config.monthlyFee !== undefined ? Number(db.config.monthlyFee) : 100;
   const history = db.config.feeHistory || [];
   if (history.length === 0) return defaultFee;
 
@@ -1085,6 +1132,86 @@ app.get("/api/emails", (req, res) => {
   res.json(emails);
 });
 
+// Send a custom communication (admin, sysadmin, directiva)
+app.post("/api/communications/send", (req, res) => {
+  const { senderEmail, senderRole, recipientMode, selectedEmails, subject, bodyText, imageUrl } = req.body;
+
+  // Validate authorization
+  const allowedRoles = ["admin", "sysadmin", "directiva"];
+  if (!allowedRoles.includes(senderRole)) {
+    return res.status(403).json({ error: "No tiene permisos para enviar comunicados." });
+  }
+
+  if (!subject || !bodyText) {
+    return res.status(400).json({ error: "El asunto y el contenido de texto son obligatorios." });
+  }
+
+  // Get recipient users
+  let recipients: string[] = [];
+  if (recipientMode === "all") {
+    // Send to all residents (non-admin, or just any user with email)
+    recipients = (db.users || [])
+      .filter(u => u.email && u.role === "resident")
+      .map(u => u.email.toLowerCase());
+  } else {
+    // Send to specific selected emails
+    recipients = (selectedEmails || []).map((e: string) => e.toLowerCase());
+  }
+
+  // Deduplicate emails
+  recipients = Array.from(new Set(recipients));
+
+  if (recipients.length === 0) {
+    return res.status(400).json({ error: "No se encontraron destinatarios válidos seleccionados." });
+  }
+
+  if (!db.emails) db.emails = [];
+
+  // Generate html body
+  let imgHtml = "";
+  if (imageUrl && imageUrl.trim()) {
+    imgHtml = `
+      <div style="margin-top: 20px; text-align: center;">
+        <img src="${imageUrl.trim()}" alt="Imagen del comunicado" style="max-width: 100%; border-radius: 12px; border: 1px solid #e2e8f0;" referrerPolicy="no-referrer" />
+      </div>
+    `;
+  }
+
+  const baseHtml = `
+    <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
+      <div style="text-align: center; margin-bottom: 24px; border-bottom: 2px solid #f1f5f9; padding-bottom: 16px;">
+        <h2 style="margin: 0; color: #1e293b; font-size: 20px; font-weight: 850; letter-spacing: -0.025em;">🔔 COMUNICADO DE ADMINISTRACIÓN</h2>
+        <p style="margin: 4px 0 0 0; color: #f59e0b; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;">Residencial KuauKali</p>
+      </div>
+      <div style="color: #334155; font-size: 14px; line-height: 1.6; white-space: pre-line;">
+        ${bodyText}
+      </div>
+      ${imgHtml}
+      <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #f1f5f9; text-align: center; color: #64748b; font-size: 11px; font-style: italic;">
+        Este es un comunicado oficial enviado por la Administración/Directiva de Residencial KuauKali a través de su bandeja de notificaciones.
+      </div>
+    </div>
+  `;
+
+  const newEmails: any[] = [];
+  recipients.forEach(email => {
+    const emailObj = {
+      id: "comm_" + Math.random().toString(36).substr(2, 9),
+      reservationId: "communication",
+      toEmail: email,
+      subject: `[COMUNICADO] ${subject}`,
+      bodyHtml: baseHtml,
+      sentAt: new Date().toISOString()
+    };
+    db.emails.unshift(emailObj); // Prepend so it appears first
+    newEmails.push(emailObj);
+  });
+
+  saveDB(db);
+
+  return res.json({ success: true, count: recipients.length });
+});
+
 // Cancel a reservation (resident or admin)
 app.post("/api/reservations/:id/cancel", (req, res) => {
   const { id } = req.params;
@@ -1350,23 +1477,33 @@ app.post("/api/visitor-passes/:id/verify", (req, res) => {
 // Vigilance Fee Payments Helpers
 function getRequiredMonths(): string[] {
   const monthsList = [
-    "Enero 2026",
-    "Febrero 2026",
-    "Marzo 2026",
-    "Abril 2026",
-    "Mayo 2026",
-    "Junio 2026",
-    "Julio 2026",
-    "Agosto 2026",
-    "Septiembre 2026",
-    "Octubre 2026",
-    "Noviembre 2026",
-    "Diciembre 2026"
+    // 2026
+    "Enero 2026", "Febrero 2026", "Marzo 2026", "Abril 2026", "Mayo 2026", "Junio 2026", "Julio 2026", "Agosto 2026", "Septiembre 2026", "Octubre 2026", "Noviembre 2026", "Diciembre 2026",
+    // 2027
+    "Enero 2027", "Febrero 2027", "Marzo 2027", "Abril 2027", "Mayo 2027", "Junio 2027", "Julio 2027", "Agosto 2027", "Septiembre 2027", "Octubre 2027", "Noviembre 2027", "Diciembre 2027",
+    // 2028
+    "Enero 2028", "Febrero 2028", "Marzo 2028", "Abril 2028", "Mayo 2028", "Junio 2028", "Julio 2028", "Agosto 2028", "Septiembre 2028", "Octubre 2028", "Noviembre 2028", "Diciembre 2028",
+    // 2029
+    "Enero 2029", "Febrero 2029", "Marzo 2029", "Abril 2029", "Mayo 2029", "Junio 2029", "Julio 2029", "Agosto 2029", "Septiembre 2029", "Octubre 2029", "Noviembre 2029", "Diciembre 2029",
+    // 2030
+    "Enero 2030", "Febrero 2030", "Marzo 2030", "Abril 2030", "Mayo 2030", "Junio 2030", "Julio 2030", "Agosto 2030", "Septiembre 2030", "Octubre 2030", "Noviembre 2030", "Diciembre 2030"
   ];
-  // Dynamic calculation representing 2026-06-25 current month is June, past months are January to May
-  const now = new Date("2026-06-25T14:57:20-07:00");
-  const currentMonthIdx = now.getMonth(); // 5 for June (0-based)
-  const availableMonths = monthsList.slice(0, currentMonthIdx);
+  // Dynamic calculation representing current month from system date
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonthIdx = now.getMonth(); // 0-based
+  
+  const monthNames = [
+    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+  ];
+  const currentMonthStr = `${monthNames[currentMonthIdx]} ${currentYear}`;
+  const currentMonthGlobalIdx = monthsList.indexOf(currentMonthStr);
+  
+  // Required months are all months prior to the current month in course
+  const availableMonths = currentMonthGlobalIdx !== -1 
+    ? monthsList.slice(0, currentMonthGlobalIdx)
+    : monthsList.slice(0, 6); // fallback
 
   // Filter based on configured start month
   const config = db.config || {};
@@ -1426,8 +1563,9 @@ app.get("/api/payments", (req, res) => {
 // Get consolidated payment statuses of all resident houses
 app.get("/api/payments/status", (req, res) => {
   const residentUsers = db.users.filter((u) => u.role === "resident" && u.isActive !== false);
-  const statusList = residentUsers.map((user) => {
-    return getHousePaymentStatus(user.house);
+  const uniqueHouses = Array.from(new Set(residentUsers.map((u) => u.house).filter(Boolean)));
+  const statusList = uniqueHouses.map((houseName) => {
+    return getHousePaymentStatus(houseName);
   });
   res.json(statusList);
 });
@@ -1687,8 +1825,10 @@ app.post("/api/admin/reset", async (req, res) => {
       payments: [],
       properties: [], // empty properties!
       config: {
-        moraThresholdMonths: 1,
+        moraThresholdMonths: 3,
         moraStartMonth: "Enero 2026",
+        monthlyFee: 100,
+        feeHistory: [],
         reservationNorms: [
           "Duración máxima permitida: 5 horas por reserva.",
           "Separación mínima entre eventos: 1 hora limpia de por medio.",
@@ -1715,9 +1855,9 @@ app.post("/api/admin/reset", async (req, res) => {
 // Configurations API
 app.get("/api/config", (req, res) => {
   const config = db.config || {
-    moraThresholdMonths: 1,
+    moraThresholdMonths: 3,
     moraStartMonth: "Enero 2026",
-    monthlyFee: 50,
+    monthlyFee: 100,
     feeHistory: [],
     reservationNorms: [
       "Duración máxima permitida: 5 horas por reserva.",
@@ -1733,9 +1873,9 @@ app.post("/api/config", (req, res) => {
   
   if (!db.config) {
     db.config = {
-      moraThresholdMonths: 1,
+      moraThresholdMonths: 3,
       moraStartMonth: "Enero 2026",
-      monthlyFee: 50,
+      monthlyFee: 100,
       feeHistory: [],
       reservationNorms: [
         "Duración máxima permitida: 5 horas por reserva.",
@@ -1756,7 +1896,7 @@ app.post("/api/config", (req, res) => {
   }
   if (monthlyFee !== undefined) {
     const newFee = Number(monthlyFee);
-    const oldFee = db.config.monthlyFee !== undefined ? Number(db.config.monthlyFee) : 50;
+    const oldFee = db.config.monthlyFee !== undefined ? Number(db.config.monthlyFee) : 100;
     
     if (newFee !== oldFee) {
       db.config.monthlyFee = newFee;

@@ -19,7 +19,8 @@ import {
   Eye, 
   CreditCard, 
   Mail,
-  Settings
+  Settings,
+  Home
 } from "lucide-react";
 
 interface HeaderProps {
@@ -44,7 +45,11 @@ export default function Header({ currentUser, onLogout, activeTab, setActiveTab 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo & Brand */}
-          <div className="flex items-center space-x-3">
+          <button 
+            onClick={() => handleSelectTab("home")}
+            className="flex items-center space-x-3 text-left focus:outline-hidden hover:opacity-90 transition-opacity cursor-pointer"
+            id="btn-header-logo-home"
+          >
             <div className="bg-amber-500 text-slate-950 p-2 rounded-lg flex items-center justify-center shrink-0">
               <Building className="h-5 w-5 md:h-6 md:w-6" id="brand-logo" />
             </div>
@@ -56,7 +61,7 @@ export default function Header({ currentUser, onLogout, activeTab, setActiveTab 
                 Nuevo Cuscatlán
               </p>
             </div>
-          </div>
+          </button>
 
           {/* User Status / Navigation Actions */}
           {currentUser && (
@@ -143,6 +148,20 @@ export default function Header({ currentUser, onLogout, activeTab, setActiveTab 
           </div>
 
           <nav className="p-3 space-y-1.5" aria-label="Navegación Móvil">
+            {/* Home Option */}
+            <button
+              id="mob-tab-home"
+              onClick={() => handleSelectTab("home")}
+              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+                activeTab === "home"
+                  ? "bg-amber-500 text-slate-950"
+                  : "text-slate-300 hover:text-white hover:bg-slate-800"
+              }`}
+            >
+              <Home className="h-4 w-4 shrink-0" />
+              <span>Inicio / Menú Principal</span>
+            </button>
+
             {/* Calendar Option */}
             <button
               id="mob-tab-calendar"

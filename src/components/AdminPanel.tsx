@@ -19,9 +19,11 @@ export default function AdminPanel({ reservations, onActionTriggered }: AdminPan
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
+  const currentMonthNum = String(new Date().getMonth() + 1).padStart(2, "0");
+  const currentYearNum = String(new Date().getFullYear());
   const [showWhatsAppModal, setShowWhatsAppModal] = useState<boolean>(false);
-  const [exportMonth, setExportMonth] = useState<string>("08"); // Default August (08)
-  const [exportYear, setExportYear] = useState<string>("2026"); // Default 2026
+  const [exportMonth, setExportMonth] = useState<string>(currentMonthNum); // Default current month
+  const [exportYear, setExportYear] = useState<string>(currentYearNum); // Default current year
   const [copiedSuccess, setCopiedSuccess] = useState<boolean>(false);
 
   const monthsEngAbbr = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -547,6 +549,9 @@ export default function AdminPanel({ reservations, onActionTriggered }: AdminPan
                   >
                     <option value="2026">2026</option>
                     <option value="2027">2027</option>
+                    <option value="2028">2028</option>
+                    <option value="2029">2029</option>
+                    <option value="2030">2030</option>
                   </select>
                 </div>
               </div>

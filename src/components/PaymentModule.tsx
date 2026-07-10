@@ -32,18 +32,16 @@ interface PaymentModuleProps {
 }
 
 const ALL_MONTHS_2026 = [
-  "Enero 2026",
-  "Febrero 2026",
-  "Marzo 2026",
-  "Abril 2026",
-  "Mayo 2026",
-  "Junio 2026",
-  "Julio 2026",
-  "Agosto 2026",
-  "Septiembre 2026",
-  "Octubre 2026",
-  "Noviembre 2026",
-  "Diciembre 2026"
+  // 2026
+  "Enero 2026", "Febrero 2026", "Marzo 2026", "Abril 2026", "Mayo 2026", "Junio 2026", "Julio 2026", "Agosto 2026", "Septiembre 2026", "Octubre 2026", "Noviembre 2026", "Diciembre 2026",
+  // 2027
+  "Enero 2027", "Febrero 2027", "Marzo 2027", "Abril 2027", "Mayo 2027", "Junio 2027", "Julio 2027", "Agosto 2027", "Septiembre 2027", "Octubre 2027", "Noviembre 2027", "Diciembre 2027",
+  // 2028
+  "Enero 2028", "Febrero 2028", "Marzo 2028", "Abril 2028", "Mayo 2028", "Junio 2028", "Julio 2028", "Agosto 2028", "Septiembre 2028", "Octubre 2028", "Noviembre 2028", "Diciembre 2028",
+  // 2029
+  "Enero 2029", "Febrero 2029", "Marzo 2029", "Abril 2029", "Mayo 2029", "Junio 2029", "Julio 2029", "Agosto 2029", "Septiembre 2029", "Octubre 2029", "Noviembre 2029", "Diciembre 2029",
+  // 2030
+  "Enero 2030", "Febrero 2030", "Marzo 2030", "Abril 2030", "Mayo 2030", "Junio 2030", "Julio 2030", "Agosto 2030", "Septiembre 2030", "Octubre 2030", "Noviembre 2030", "Diciembre 2030"
 ];
 
 const MONTHLY_FEE = 50; // $50 USD per month
@@ -80,8 +78,8 @@ export default function PaymentModule({ currentUser }: PaymentModuleProps) {
   const [adminTab, setAdminTab] = useState<"pending" | "history">("pending");
 
   const getFeeForMonth = (monthName: string) => {
-    if (!config) return 50;
-    const defaultFee = config.monthlyFee !== undefined ? Number(config.monthlyFee) : 50;
+    if (!config) return 100;
+    const defaultFee = config.monthlyFee !== undefined ? Number(config.monthlyFee) : 100;
     const history = config.feeHistory || [];
     if (history.length === 0) return defaultFee;
 
@@ -360,7 +358,7 @@ export default function PaymentModule({ currentUser }: PaymentModuleProps) {
           </div>
           <div className="text-right shrink-0">
             <span className="text-[10px] uppercase font-mono text-slate-450 block">Precio de Cuota de Vigilancia</span>
-            <span className="text-2xl font-black text-slate-900">${config?.monthlyFee ?? 50}.00 <span className="text-xs font-normal text-slate-500">USD / mes</span></span>
+            <span className="text-2xl font-black text-slate-900">${config?.monthlyFee ?? 100}.00 <span className="text-xs font-normal text-slate-500">USD / mes</span></span>
           </div>
         </div>
 
@@ -402,7 +400,7 @@ export default function PaymentModule({ currentUser }: PaymentModuleProps) {
                   {pendingToPay.length === 0 ? (
                     <div className="bg-slate-50 border border-slate-200 text-slate-600 p-3.5 rounded-xl text-xs flex items-center space-x-2">
                       <CheckCircle className="text-emerald-500 h-4 w-4" />
-                      <span>Ya se encuentra al día y ha pagado de forma adelantada todos los meses de 2026.</span>
+                      <span>Ya se encuentra al día y ha pagado de forma adelantada todos los meses del período.</span>
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">

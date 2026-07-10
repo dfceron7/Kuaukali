@@ -42,36 +42,44 @@ interface PaymentStatusReport {
 
 export default function ConfigurationPanel({ currentUser }: ConfigurationPanelProps) {
   // Config States
-  const [moraThreshold, setMoraThreshold] = useState<number>(1);
+  const [moraThreshold, setMoraThreshold] = useState<number>(3);
   const [moraStartMonth, setMoraStartMonth] = useState<string>("Enero 2026");
   const [norms, setNorms] = useState<string[]>([]);
   const [newNorm, setNewNorm] = useState<string>("");
-  const [monthlyFee, setMonthlyFee] = useState<number>(50);
+  const [monthlyFee, setMonthlyFee] = useState<number>(100);
   const [feeHistory, setFeeHistory] = useState<any[]>([]);
   const [loadingConfig, setLoadingConfig] = useState<boolean>(true);
   const [saveStatus, setSaveStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [resettingDb, setResettingDb] = useState<boolean>(false);
 
+  // Dynamic current date loading
+  const now = new Date();
+  const currentYearStr = String(now.getFullYear());
+  const monthNames = [
+    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+  ];
+  const currentMonthName = monthNames[now.getMonth()];
+  const currentMonthYearStr = `${currentMonthName} ${currentYearStr}`;
+
   // Report States
-  const [selectedYear, setSelectedYear] = useState<string>("2026");
-  const [selectedMonth, setSelectedMonth] = useState<string>("todos");
+  const [selectedYear, setSelectedYear] = useState<string>(currentYearStr);
+  const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthYearStr);
   const [paymentStatuses, setPaymentStatuses] = useState<PaymentStatusReport[]>([]);
   const [rawPayments, setRawPayments] = useState<any[]>([]);
   const [loadingReport, setLoadingReport] = useState<boolean>(true);
 
   const monthsList = [
-    "Enero 2026",
-    "Febrero 2026",
-    "Marzo 2026",
-    "Abril 2026",
-    "Mayo 2026",
-    "Junio 2026",
-    "Julio 2026",
-    "Agosto 2026",
-    "Septiembre 2026",
-    "Octubre 2026",
-    "Noviembre 2026",
-    "Diciembre 2026"
+    // 2026
+    "Enero 2026", "Febrero 2026", "Marzo 2026", "Abril 2026", "Mayo 2026", "Junio 2026", "Julio 2026", "Agosto 2026", "Septiembre 2026", "Octubre 2026", "Noviembre 2026", "Diciembre 2026",
+    // 2027
+    "Enero 2027", "Febrero 2027", "Marzo 2027", "Abril 2027", "Mayo 2027", "Junio 2027", "Julio 2027", "Agosto 2027", "Septiembre 2027", "Octubre 2027", "Noviembre 2027", "Diciembre 2027",
+    // 2028
+    "Enero 2028", "Febrero 2028", "Marzo 2028", "Abril 2028", "Mayo 2028", "Junio 2028", "Julio 2028", "Agosto 2028", "Septiembre 2028", "Octubre 2028", "Noviembre 2028", "Diciembre 2028",
+    // 2029
+    "Enero 2029", "Febrero 2029", "Marzo 2029", "Abril 2029", "Mayo 2029", "Junio 2029", "Julio 2029", "Agosto 2029", "Septiembre 2029", "Octubre 2029", "Noviembre 2029", "Diciembre 2029",
+    // 2030
+    "Enero 2030", "Febrero 2030", "Marzo 2030", "Abril 2030", "Mayo 2030", "Junio 2030", "Julio 2030", "Agosto 2030", "Septiembre 2030", "Octubre 2030", "Noviembre 2030", "Diciembre 2030"
   ];
 
   // Fetch Config
@@ -401,7 +409,7 @@ export default function ConfigurationPanel({ currentUser }: ConfigurationPanelPr
                     <span className="text-slate-500 font-medium">USD al mes</span>
                   </div>
                   <p className="text-[10px] text-amber-600 font-medium bg-amber-50/70 border border-amber-200 rounded-xl p-3 mt-1.5 leading-relaxed">
-                    ⚠️ <strong>Regla Financiera:</strong> Cualquier cambio en la cuota aplicará a partir del <strong>siguiente mes</strong> (Julio 2026). El mes actual en curso (Junio 2026) se mantiene con la cuota previa para proteger cobros conciliados.
+                    ⚠️ <strong>Regla Financiera:</strong> Cualquier cambio en la cuota aplicará a partir del siguiente mes. El mes actual en curso se mantiene con la cuota previa para proteger cobros conciliados.
                   </p>
                 </div>
 
@@ -606,10 +614,19 @@ export default function ConfigurationPanel({ currentUser }: ConfigurationPanelPr
                 <div>
                   <select
                     value={selectedYear}
-                    onChange={(e) => setSelectedYear(e.target.value)}
+                    onChange={(e) => {
+                      const yr = e.target.value;
+                      setSelectedYear(yr);
+                      // Set selected month to first month of the newly selected year or "todos"
+                      setSelectedMonth(`Enero ${yr}`);
+                    }}
                     className="pl-2.5 pr-8 py-1.5 rounded-lg border border-slate-300 bg-slate-50 text-xs font-bold text-slate-800 focus:bg-white focus:outline-hidden"
                   >
                     <option value="2026">Año 2026</option>
+                    <option value="2027">Año 2027</option>
+                    <option value="2028">Año 2028</option>
+                    <option value="2029">Año 2029</option>
+                    <option value="2030">Año 2030</option>
                   </select>
                 </div>
                 <div>
@@ -619,7 +636,7 @@ export default function ConfigurationPanel({ currentUser }: ConfigurationPanelPr
                     className="pl-2.5 pr-8 py-1.5 rounded-lg border border-slate-300 bg-slate-50 text-xs font-bold text-slate-800 focus:bg-white focus:outline-hidden"
                   >
                     <option value="todos">Todo el año</option>
-                    {monthsList.map(m => (
+                    {monthsList.filter(m => m.includes(selectedYear)).map(m => (
                       <option key={m} value={m}>{m}</option>
                     ))}
                   </select>
