@@ -56,6 +56,7 @@ export default function PaymentModule({ currentUser }: PaymentModuleProps) {
 
   // Forms and state
   const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
+  const [selectedYear, setSelectedYear] = useState<string>("2026");
   const [transactionReference, setTransactionReference] = useState<string>("");
   const [proofFileName, setProofFileName] = useState<string>("");
   const [proofFileUrl, setProofFileUrl] = useState<string>("");
@@ -320,6 +321,10 @@ export default function PaymentModule({ currentUser }: PaymentModuleProps) {
       return payments.some(p => p.status === "pending" && p.months.includes(m));
     });
 
+    // Filter displayed lists based on user-selected year
+    const displayedPendingToPay = pendingToPay.filter(m => m.endsWith(selectedYear));
+    const displayedPendingInValidation = pendingInValidation.filter(m => m.endsWith(selectedYear));
+
     return (
       <div className="space-y-8" id="resident-payments-module">
         {/* Status banner */}
@@ -391,23 +396,41 @@ export default function PaymentModule({ currentUser }: PaymentModuleProps) {
 
               <form onSubmit={handleSubmitPayment} className="space-y-6">
                 
-                {/* 1. Select Months */}
+                {/* 1. Select Months with Year Filter */}
                 <div className="space-y-2.5">
-                  <label className="block text-xs font-bold text-slate-700 uppercase">
-                    1. Seleccione los meses a pagar:
-                  </label>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-1 border-b border-slate-100">
+                    <label className="block text-xs font-bold text-slate-700 uppercase">
+                      1. Seleccione los meses a pagar:
+                    </label>
+                    <div className="flex items-center space-x-2 self-start sm:self-auto">
+                      <span className="text-[11px] text-slate-500 font-medium">Año:</span>
+                      <select
+                        id="filter-year-select"
+                        value={selectedYear}
+                        onChange={(e) => setSelectedYear(e.target.value)}
+                        className="text-xs bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-lg py-1 px-2.5 font-bold text-slate-700 focus:outline-hidden focus:border-teal-500 cursor-pointer transition-all"
+                      >
+                        <option value="2026">2026</option>
+                        <option value="2027">2027</option>
+                        <option value="2028">2028</option>
+                        <option value="2029">2029</option>
+                        <option value="2030">2030</option>
+                      </select>
+                    </div>
+                  </div>
                   
-                  {pendingToPay.length === 0 ? (
-                    <div className="bg-slate-50 border border-slate-200 text-slate-600 p-3.5 rounded-xl text-xs flex items-center space-x-2">
-                      <CheckCircle className="text-emerald-500 h-4 w-4" />
-                      <span>Ya se encuentra al día y ha pagado de forma adelantada todos los meses del período.</span>
+                  {displayedPendingToPay.length === 0 ? (
+                    <div className="bg-slate-50 border border-slate-200 text-slate-600 p-4 rounded-xl text-xs flex items-center space-x-2">
+                      <CheckCircle className="text-emerald-500 h-4 w-4 shrink-0" />
+                      <span>No hay cuotas pendientes ni adelantadas por registrar para el año <strong>{selectedYear}</strong> (ya están pagadas o en proceso de validación). Cambie el año para registrar otros periodos.</span>
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {pendingToPay.map((month) => (
+                      {displayedPendingToPay.map((month) => (
                         <button
                           key={month}
                           type="button"
+                          id={`btn-toggle-month-${month.replace(/\s+/g, '-')}`}
                           onClick={() => handleToggleMonth(month)}
                           className={`p-3 rounded-xl border text-xs font-medium transition-all text-left flex items-center justify-between cursor-pointer ${
                             selectedMonths.includes(month)
@@ -428,11 +451,11 @@ export default function PaymentModule({ currentUser }: PaymentModuleProps) {
                     </div>
                   )}
 
-                  {pendingInValidation.length > 0 && (
-                    <div className="text-[11px] text-amber-700 bg-amber-50 rounded-lg p-2.5 border border-amber-100 mt-1 flex items-start space-x-1.5">
+                  {displayedPendingInValidation.length > 0 && (
+                    <div className="text-[11px] text-amber-700 bg-amber-50 rounded-lg p-2.5 border border-amber-100 mt-2 flex items-start space-x-1.5">
                       <Info className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-600" />
                       <span>
-                        Meses en validación administrativa: <strong>{pendingInValidation.join(", ")}</strong>. Espere la verificación del administrador para estos periodos.
+                        Meses en validación administrativa para el año <strong>{selectedYear}</strong>: <strong>{displayedPendingInValidation.join(", ")}</strong>. Espere la verificación para estos periodos.
                       </span>
                     </div>
                   )}

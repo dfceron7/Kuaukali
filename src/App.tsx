@@ -411,17 +411,7 @@ export default function App() {
 
   // Update visual route defaults depending on logged user
   useEffect(() => {
-    if (currentUser) {
-      if (currentUser.role === "admin") {
-        setActiveTab("admin");
-      } else if (currentUser.role === "vigilante") {
-        setActiveTab("guard");
-      } else {
-        setActiveTab("calendar");
-      }
-    } else {
-      setActiveTab("calendar");
-    }
+    setActiveTab("home");
   }, [currentUser]);
 
   // Handle standard user logins
