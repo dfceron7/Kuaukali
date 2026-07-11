@@ -30,6 +30,7 @@ interface AppConfig {
   reservationNorms: string[];
   monthlyFee?: number;
   feeHistory?: any[];
+  enabledFeatures?: Record<string, boolean>;
 }
 
 interface PaymentStatusReport {
@@ -51,6 +52,21 @@ export default function ConfigurationPanel({ currentUser }: ConfigurationPanelPr
   const [loadingConfig, setLoadingConfig] = useState<boolean>(true);
   const [saveStatus, setSaveStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [resettingDb, setResettingDb] = useState<boolean>(false);
+
+  const [enabledFeatures, setEnabledFeatures] = useState<Record<string, boolean>>({
+    calendar: true,
+    reserve: true,
+    history: true,
+    visitors: true,
+    payments: true,
+    emails: true,
+    guard: true,
+    admin: true,
+    users: true,
+    properties: true
+  });
+  const [saveFeaturesStatus, setSaveFeaturesStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [savingFeatures, setSavingFeatures] = useState<boolean>(false);
 
   // Dynamic current date loading
   const now = new Date();
@@ -93,6 +109,20 @@ export default function ConfigurationPanel({ currentUser }: ConfigurationPanelPr
         setNorms(data.reservationNorms ?? []);
         setMonthlyFee(data.monthlyFee ?? 50);
         setFeeHistory(data.feeHistory ?? []);
+        if (data.enabledFeatures) {
+          setEnabledFeatures({
+            calendar: data.enabledFeatures.calendar !== false,
+            reserve: data.enabledFeatures.reserve !== false,
+            history: data.enabledFeatures.history !== false,
+            visitors: data.enabledFeatures.visitors !== false,
+            payments: data.enabledFeatures.payments !== false,
+            emails: data.enabledFeatures.emails !== false,
+            guard: data.enabledFeatures.guard !== false,
+            admin: data.enabledFeatures.admin !== false,
+            users: data.enabledFeatures.users !== false,
+            properties: data.enabledFeatures.properties !== false
+          });
+        }
       }
     } catch (e) {
       console.error("Error fetching config:", e);
@@ -150,6 +180,35 @@ export default function ConfigurationPanel({ currentUser }: ConfigurationPanelPr
       }
     } catch (e) {
       setSaveStatus({ type: "error", message: "Error de conexión." });
+    }
+  };
+
+  // Save menu options availability config
+  const handleSaveFeaturesConfig = async () => {
+    setSaveFeaturesStatus(null);
+    setSavingFeatures(true);
+    try {
+      const res = await fetch("/api/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          enabledFeatures
+        })
+      });
+      if (res.ok) {
+        setSaveFeaturesStatus({ type: "success", message: "Disponibilidad del menú actualizada correctamente." });
+        await fetchConfig();
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("menu-config-changed"));
+        }
+        setTimeout(() => setSaveFeaturesStatus(null), 4000);
+      } else {
+        setSaveFeaturesStatus({ type: "error", message: "Error al guardar la disponibilidad del menú." });
+      }
+    } catch (e) {
+      setSaveFeaturesStatus({ type: "error", message: "Error de conexión al intentar guardar la configuración del menú." });
+    } finally {
+      setSavingFeatures(false);
     }
   };
 
@@ -547,6 +606,78 @@ export default function ConfigurationPanel({ currentUser }: ConfigurationPanelPr
                   </form>
                 </>
               )}
+            </div>
+          </div>
+
+          {/* Menu Options Configuration */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-6">
+            <div className="border-b border-slate-100 pb-3 flex items-center space-x-2">
+              <Settings className="h-5 w-5 text-teal-600" />
+              <h3 className="font-bold text-slate-900 font-sans text-sm uppercase tracking-wide">Visibilidad de Módulos (Menú)</h3>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <p className="text-[11px] text-slate-500">
+                Seleccione qué opciones del menú y de la pantalla de inicio estarán disponibles para los usuarios en todo el condominio. Desmarcar una opción la ocultará por completo.
+              </p>
+
+              {loadingConfig ? (
+                <div className="text-xs text-slate-400 text-center py-4">Cargando opciones...</div>
+              ) : (
+                <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                  {[
+                    { key: "calendar", name: "Calendario de Amenidades", desc: "Ver disponibilidad de áreas comunes" },
+                    { key: "reserve", name: "Nueva Reserva", desc: "Permite a residentes apartar áreas" },
+                    { key: "history", name: "Mis Reservaciones", desc: "Ver historial de reservas y estatus" },
+                    { key: "visitors", name: "Control de Visitas", desc: "Pases de visitas y accesos QR" },
+                    { key: "payments", name: "Cuotas de Vigilancia (Pagos)", desc: "Subida y validación de transferencias" },
+                    { key: "guard", name: "Caseta de Vigilancia", desc: "Registro de accesos por vigilantes" },
+                    { key: "admin", name: "Aprobación de Solicitudes", desc: "Validación de reservas y comprobantes" },
+                    { key: "users", name: "Control de Usuarios", desc: "Gestión de cuentas y roles" },
+                    { key: "properties", name: "Control de Inmuebles", desc: "Padrón de casas y estados financieros" },
+                    { key: "emails", name: "Buzón de Correos", desc: "Bandeja de comunicados y notificaciones" }
+                  ].map((feature) => (
+                    <label
+                      key={feature.key}
+                      className="flex items-start space-x-3 p-2 rounded-xl hover:bg-slate-50 border border-slate-100 transition-colors cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={enabledFeatures[feature.key] !== false}
+                        onChange={(e) => {
+                          setEnabledFeatures({
+                            ...enabledFeatures,
+                            [feature.key]: e.target.checked
+                          });
+                        }}
+                        className="mt-0.5 h-4 w-4 rounded-sm border-slate-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+                      />
+                      <div>
+                        <span className="font-bold text-slate-900 block">{feature.name}</span>
+                        <span className="text-[10px] text-slate-400 leading-normal block">{feature.desc}</span>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              {saveFeaturesStatus && (
+                <div className={`p-2.5 rounded text-[11px] font-medium leading-relaxed ${
+                  saveFeaturesStatus.type === "success" ? "bg-emerald-50 text-emerald-800" : "bg-rose-50 text-rose-800"
+                }`}>
+                  {saveFeaturesStatus.message}
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleSaveFeaturesConfig}
+                disabled={savingFeatures || loadingConfig}
+                className="w-full bg-slate-900 hover:bg-slate-800 disabled:bg-slate-400 text-white font-bold py-2.5 px-4 rounded-xl transition-all flex items-center justify-center space-x-2 cursor-pointer shadow-xs text-xs font-sans"
+              >
+                <Save className="h-4 w-4" />
+                <span>{savingFeatures ? "Guardando..." : "Guardar Visibilidad"}</span>
+              </button>
             </div>
           </div>
 

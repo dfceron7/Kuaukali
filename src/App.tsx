@@ -57,6 +57,63 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>("home");
   const [loadingRes, setLoadingRes] = useState<boolean>(false);
 
+  const [enabledFeatures, setEnabledFeatures] = useState<Record<string, boolean>>({
+    calendar: true,
+    reserve: true,
+    history: true,
+    visitors: true,
+    payments: true,
+    emails: true,
+    guard: true,
+    admin: true,
+    users: true,
+    properties: true
+  });
+
+  const fetchAppConfig = async () => {
+    try {
+      const res = await fetch("/api/config");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.enabledFeatures) {
+          setEnabledFeatures({
+            calendar: data.enabledFeatures.calendar !== false,
+            reserve: data.enabledFeatures.reserve !== false,
+            history: data.enabledFeatures.history !== false,
+            visitors: data.enabledFeatures.visitors !== false,
+            payments: data.enabledFeatures.payments !== false,
+            emails: data.enabledFeatures.emails !== false,
+            guard: data.enabledFeatures.guard !== false,
+            admin: data.enabledFeatures.admin !== false,
+            users: data.enabledFeatures.users !== false,
+            properties: data.enabledFeatures.properties !== false
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Error loading app config:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchAppConfig();
+    if (typeof window !== "undefined") {
+      const handleMenuChange = () => {
+        fetchAppConfig();
+      };
+      window.addEventListener("menu-config-changed", handleMenuChange);
+      return () => {
+        window.removeEventListener("menu-config-changed", handleMenuChange);
+      };
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (activeTab !== "home" && activeTab !== "config" && enabledFeatures[activeTab] === false) {
+      setActiveTab("home");
+    }
+  }, [activeTab, enabledFeatures]);
+
   // Notifications & Toasts state
   const [toasts, setToasts] = useState<ToastAlert[]>([]);
   const [notificationPermission, setNotificationPermission] = useState<string>(() => {
@@ -575,6 +632,7 @@ export default function App() {
         onLogout={handleLogout}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
+        enabledFeatures={enabledFeatures}
       />
 
       {/* Main Container Section */}
@@ -915,59 +973,67 @@ export default function App() {
                 Inicio
               </button>
 
-              <button
-                id="bar-tab-calendar"
-                onClick={() => setActiveTab("calendar")}
-                className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
-                  activeTab === "calendar"
-                    ? "bg-slate-900 text-white"
-                    : "text-slate-600 hover:text-slate-950"
-                }`}
-              >
-                Calendario Interactivo
-              </button>
+              {enabledFeatures.calendar !== false && (
+                <button
+                  id="bar-tab-calendar"
+                  onClick={() => setActiveTab("calendar")}
+                  className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+                    activeTab === "calendar"
+                      ? "bg-slate-900 text-white"
+                      : "text-slate-600 hover:text-slate-950"
+                  }`}
+                >
+                  Calendario Interactivo
+                </button>
+              )}
 
               {currentUser.role === "resident" && (
                 <>
-                  <button
-                    id="bar-tab-reserve"
-                    onClick={() => setActiveTab("reserve")}
-                    className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
-                      activeTab === "reserve"
-                        ? "bg-slate-900 text-white"
-                        : "text-slate-600 hover:text-slate-950"
-                    }`}
-                  >
-                    Nueva Reserva
-                  </button>
+                  {enabledFeatures.reserve !== false && (
+                    <button
+                      id="bar-tab-reserve"
+                      onClick={() => setActiveTab("reserve")}
+                      className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+                        activeTab === "reserve"
+                          ? "bg-slate-900 text-white"
+                          : "text-slate-600 hover:text-slate-950"
+                      }`}
+                    >
+                      Nueva Reserva
+                    </button>
+                  )}
 
-                  <button
-                    id="bar-tab-history"
-                    onClick={() => setActiveTab("history")}
-                    className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
-                      activeTab === "history"
-                        ? "bg-slate-900 text-white"
-                        : "text-slate-600 hover:text-slate-950"
-                    }`}
-                  >
-                    Mis Reservaciones
-                  </button>
+                  {enabledFeatures.history !== false && (
+                    <button
+                      id="bar-tab-history"
+                      onClick={() => setActiveTab("history")}
+                      className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+                        activeTab === "history"
+                          ? "bg-slate-900 text-white"
+                          : "text-slate-600 hover:text-slate-950"
+                      }`}
+                    >
+                      Mis Reservaciones
+                    </button>
+                  )}
 
-                  <button
-                    id="bar-tab-visitors"
-                    onClick={() => setActiveTab("visitors")}
-                    className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
-                      activeTab === "visitors"
-                        ? "bg-slate-900 text-white"
-                        : "text-slate-600 hover:text-slate-950"
-                    }`}
-                  >
-                    Control de Visitas
-                  </button>
+                  {enabledFeatures.visitors !== false && (
+                    <button
+                      id="bar-tab-visitors"
+                      onClick={() => setActiveTab("visitors")}
+                      className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+                        activeTab === "visitors"
+                          ? "bg-slate-900 text-white"
+                          : "text-slate-600 hover:text-slate-950"
+                      }`}
+                    >
+                      Control de Visitas
+                    </button>
+                  )}
                 </>
               )}
 
-              {currentUser.role === "vigilante" && (
+              {currentUser.role === "vigilante" && enabledFeatures.guard !== false && (
                 <button
                   id="bar-tab-guard"
                   onClick={() => setActiveTab("guard")}
@@ -983,53 +1049,61 @@ export default function App() {
 
               {(currentUser.role === "admin" || currentUser.role === "directiva") && (
                 <>
-                  <button
-                    id="bar-tab-admin"
-                    onClick={() => setActiveTab("admin")}
-                    className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
-                      activeTab === "admin"
-                        ? "bg-slate-900 text-white"
-                        : "text-slate-600 hover:text-slate-950"
-                    }`}
-                  >
-                    Aprobación de Solicitudes ({pendingCount})
-                  </button>
+                  {enabledFeatures.admin !== false && (
+                    <button
+                      id="bar-tab-admin"
+                      onClick={() => setActiveTab("admin")}
+                      className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+                        activeTab === "admin"
+                          ? "bg-slate-900 text-white"
+                          : "text-slate-600 hover:text-slate-950"
+                      }`}
+                    >
+                      Aprobación de Solicitudes ({pendingCount})
+                    </button>
+                  )}
 
-                  <button
-                    id="bar-tab-users"
-                    onClick={() => setActiveTab("users")}
-                    className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
-                      activeTab === "users"
-                        ? "bg-slate-900 text-white"
-                        : "text-slate-600 hover:text-slate-950"
-                    }`}
-                  >
-                    Control de Usuarios
-                  </button>
+                  {enabledFeatures.users !== false && (
+                    <button
+                      id="bar-tab-users"
+                      onClick={() => setActiveTab("users")}
+                      className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+                        activeTab === "users"
+                          ? "bg-slate-900 text-white"
+                          : "text-slate-600 hover:text-slate-950"
+                      }`}
+                    >
+                      Control de Usuarios
+                    </button>
+                  )}
 
-                  <button
-                    id="bar-tab-properties"
-                    onClick={() => setActiveTab("properties")}
-                    className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
-                      activeTab === "properties"
-                        ? "bg-slate-900 text-white"
-                        : "text-slate-600 hover:text-slate-950"
-                    }`}
-                  >
-                    Control de Inmuebles
-                  </button>
+                  {enabledFeatures.properties !== false && (
+                    <button
+                      id="bar-tab-properties"
+                      onClick={() => setActiveTab("properties")}
+                      className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+                        activeTab === "properties"
+                          ? "bg-slate-900 text-white"
+                          : "text-slate-600 hover:text-slate-950"
+                      }`}
+                    >
+                      Control de Inmuebles
+                    </button>
+                  )}
 
-                  <button
-                    id="bar-tab-guard-admin"
-                    onClick={() => setActiveTab("guard")}
-                    className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
-                      activeTab === "guard"
-                        ? "bg-slate-900 text-white"
-                        : "text-slate-600 hover:text-slate-950"
-                    }`}
-                  >
-                    Monitoreo Visitas
-                  </button>
+                  {enabledFeatures.guard !== false && (
+                    <button
+                      id="bar-tab-guard-admin"
+                      onClick={() => setActiveTab("guard")}
+                      className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+                        activeTab === "guard"
+                          ? "bg-slate-900 text-white"
+                          : "text-slate-600 hover:text-slate-950"
+                      }`}
+                    >
+                      Monitoreo Visitas
+                    </button>
+                  )}
 
                   {(currentUser.role === "directiva" || currentUser.id === "u_admin") && (
                     <button
@@ -1047,23 +1121,25 @@ export default function App() {
                 </>
               )}
 
-              <button
-                id="bar-tab-payments"
-                onClick={() => setActiveTab("payments")}
-                className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
-                  activeTab === "payments"
-                    ? "bg-slate-900 text-white"
-                    : "text-slate-600 hover:text-slate-950"
-                }`}
-              >
-                {currentUser.role === "resident" 
-                  ? "Pagos de Vigilancia" 
-                  : (currentUser.role === "admin" || currentUser.role === "directiva") 
-                  ? "Control de Pagos" 
-                  : "Matriz de Solvencia"}
-              </button>
+              {enabledFeatures.payments !== false && (
+                <button
+                  id="bar-tab-payments"
+                  onClick={() => setActiveTab("payments")}
+                  className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+                    activeTab === "payments"
+                      ? "bg-slate-900 text-white"
+                      : "text-slate-600 hover:text-slate-950"
+                  }`}
+                >
+                  {currentUser.role === "resident" 
+                    ? "Pagos de Vigilancia" 
+                    : (currentUser.role === "admin" || currentUser.role === "directiva") 
+                    ? "Control de Pagos" 
+                    : "Matriz de Solvencia"}
+                </button>
+              )}
 
-              {currentUser.role !== "vigilante" && (
+              {currentUser.role !== "vigilante" && enabledFeatures.emails !== false && (
                 <button
                   id="bar-tab-emails"
                   onClick={() => setActiveTab("emails")}
@@ -1084,6 +1160,7 @@ export default function App() {
                 currentUser={currentUser}
                 setActiveTab={setActiveTab}
                 pendingCount={pendingCount}
+                enabledFeatures={enabledFeatures}
               />
             )}
 

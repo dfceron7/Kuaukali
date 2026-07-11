@@ -26,9 +26,10 @@ interface HomeDashboardProps {
   currentUser: User;
   setActiveTab: (tab: string) => void;
   pendingCount: number;
+  enabledFeatures?: Record<string, boolean>;
 }
 
-export default function HomeDashboard({ currentUser, setActiveTab, pendingCount }: HomeDashboardProps) {
+export default function HomeDashboard({ currentUser, setActiveTab, pendingCount, enabledFeatures = {} }: HomeDashboardProps) {
   // Define action card item structure
   interface ActionCard {
     tab: string;
@@ -171,6 +172,14 @@ export default function HomeDashboard({ currentUser, setActiveTab, pendingCount 
       // vigilante
       return [
         {
+          tab: "calendar",
+          title: "Calendario de Amenidades",
+          description: "Consulte la disponibilidad de la casa club, piscina y áreas verdes en tiempo real.",
+          icon: Calendar,
+          colorClass: "from-teal-500/10 to-teal-600/5 hover:border-teal-400 bg-white",
+          iconColorClass: "text-teal-600 bg-teal-50"
+        },
+        {
           tab: "guard",
           title: "Caseta de Vigilancia",
           description: "Registre entradas peatonales/vehiculares, escanee códigos QR y tome notas de incidentes.",
@@ -190,7 +199,11 @@ export default function HomeDashboard({ currentUser, setActiveTab, pendingCount 
     }
   };
 
-  const actionCards = getCardsForRole();
+  const rawCards = getCardsForRole();
+  const actionCards = rawCards.filter(card => {
+    if (card.tab === "config") return true;
+    return enabledFeatures[card.tab] !== false;
+  });
 
   const getGreeting = () => {
     const hr = new Date().getHours();

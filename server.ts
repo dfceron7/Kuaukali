@@ -1864,7 +1864,7 @@ app.get("/api/config", (req, res) => {
 });
 
 app.post("/api/config", (req, res) => {
-  const { moraThresholdMonths, moraStartMonth, reservationNorms, monthlyFee } = req.body;
+  const { moraThresholdMonths, moraStartMonth, reservationNorms, monthlyFee, enabledFeatures } = req.body;
   
   if (!db.config) {
     db.config = {
@@ -1878,6 +1878,10 @@ app.post("/api/config", (req, res) => {
         "Se requiere comprobante de transferencia bancaria visible para estudio administrativo."
       ]
     };
+  }
+  
+  if (enabledFeatures !== undefined) {
+    db.config.enabledFeatures = enabledFeatures;
   }
   
   if (moraThresholdMonths !== undefined) {

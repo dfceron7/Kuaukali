@@ -82,7 +82,8 @@ export default function EmailSimulator({ currentUser }: EmailSimulatorProps) {
       const data = await res.json();
       setEmails(data);
       if (data.length > 0) {
-        if (!selectedEmail || !data.some((m: EmailNotification) => m.id === selectedEmail.id)) {
+        const isDesktop = typeof window !== "undefined" && window.innerWidth >= 768;
+        if (isDesktop && (!selectedEmail || !data.some((m: EmailNotification) => m.id === selectedEmail.id))) {
           setSelectedEmail(data[0]);
         }
       } else {

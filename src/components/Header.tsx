@@ -28,9 +28,10 @@ interface HeaderProps {
   onLogout: () => void;
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  enabledFeatures?: Record<string, boolean>;
 }
 
-export default function Header({ currentUser, onLogout, activeTab, setActiveTab }: HeaderProps) {
+export default function Header({ currentUser, onLogout, activeTab, setActiveTab, enabledFeatures = {} }: HeaderProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
@@ -163,65 +164,73 @@ export default function Header({ currentUser, onLogout, activeTab, setActiveTab 
             </button>
 
             {/* Calendar Option */}
-            <button
-              id="mob-tab-calendar"
-              onClick={() => handleSelectTab("calendar")}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
-                activeTab === "calendar"
-                  ? "bg-amber-500 text-slate-950"
-                  : "text-slate-300 hover:text-white hover:bg-slate-800"
-              }`}
-            >
-              <Calendar className="h-4 w-4 shrink-0" />
-              <span>Calendario Interactivo</span>
-            </button>
+            {enabledFeatures.calendar !== false && (
+              <button
+                id="mob-tab-calendar"
+                onClick={() => handleSelectTab("calendar")}
+                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === "calendar"
+                    ? "bg-amber-500 text-slate-950"
+                    : "text-slate-300 hover:text-white hover:bg-slate-800"
+                }`}
+              >
+                <Calendar className="h-4 w-4 shrink-0" />
+                <span>Calendario Interactivo</span>
+              </button>
+            )}
 
             {/* Resident Actions */}
             {currentUser.role === "resident" && (
               <>
-                <button
-                  id="mob-tab-reserve"
-                  onClick={() => handleSelectTab("reserve")}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
-                    activeTab === "reserve"
-                      ? "bg-amber-500 text-slate-950"
-                      : "text-slate-300 hover:text-white hover:bg-slate-800"
-                  }`}
-                >
-                  <PlusCircle className="h-4 w-4 shrink-0" />
-                  <span>Nueva Reserva</span>
-                </button>
+                {enabledFeatures.reserve !== false && (
+                  <button
+                    id="mob-tab-reserve"
+                    onClick={() => handleSelectTab("reserve")}
+                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+                      activeTab === "reserve"
+                        ? "bg-amber-500 text-slate-950"
+                        : "text-slate-300 hover:text-white hover:bg-slate-800"
+                    }`}
+                  >
+                    <PlusCircle className="h-4 w-4 shrink-0" />
+                    <span>Nueva Reserva</span>
+                  </button>
+                )}
 
-                <button
-                  id="mob-tab-history"
-                  onClick={() => handleSelectTab("history")}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
-                    activeTab === "history"
-                      ? "bg-amber-500 text-slate-950"
-                      : "text-slate-300 hover:text-white hover:bg-slate-800"
-                  }`}
-                >
-                  <History className="h-4 w-4 shrink-0" />
-                  <span>Mis Reservaciones</span>
-                </button>
+                {enabledFeatures.history !== false && (
+                  <button
+                    id="mob-tab-history"
+                    onClick={() => handleSelectTab("history")}
+                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+                      activeTab === "history"
+                        ? "bg-amber-500 text-slate-950"
+                        : "text-slate-300 hover:text-white hover:bg-slate-800"
+                    }`}
+                  >
+                    <History className="h-4 w-4 shrink-0" />
+                    <span>Mis Reservaciones</span>
+                  </button>
+                )}
 
-                <button
-                  id="mob-tab-visitors"
-                  onClick={() => handleSelectTab("visitors")}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
-                    activeTab === "visitors"
-                      ? "bg-amber-500 text-slate-950"
-                      : "text-slate-300 hover:text-white hover:bg-slate-800"
-                  }`}
-                >
-                  <UserCheck className="h-4 w-4 shrink-0" />
-                  <span>Control de Visitas</span>
-                </button>
+                {enabledFeatures.visitors !== false && (
+                  <button
+                    id="mob-tab-visitors"
+                    onClick={() => handleSelectTab("visitors")}
+                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+                      activeTab === "visitors"
+                        ? "bg-amber-500 text-slate-950"
+                        : "text-slate-300 hover:text-white hover:bg-slate-800"
+                    }`}
+                  >
+                    <UserCheck className="h-4 w-4 shrink-0" />
+                    <span>Control de Visitas</span>
+                  </button>
+                )}
               </>
             )}
 
             {/* Guard Actions */}
-            {currentUser.role === "vigilante" && (
+            {currentUser.role === "vigilante" && enabledFeatures.guard !== false && (
               <button
                 id="mob-tab-guard"
                 onClick={() => handleSelectTab("guard")}
@@ -239,57 +248,65 @@ export default function Header({ currentUser, onLogout, activeTab, setActiveTab 
             {/* Admin/Directiva Actions */}
             {(currentUser.role === "admin" || currentUser.role === "directiva") && (
               <>
-                <button
-                  id="mob-tab-admin"
-                  onClick={() => handleSelectTab("admin")}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
-                    activeTab === "admin"
-                      ? "bg-amber-500 text-slate-950"
-                      : "text-slate-300 hover:text-white hover:bg-slate-800"
-                  }`}
-                >
-                  <ShieldAlert className="h-4 w-4 shrink-0" />
-                  <span>Aprobación de Solicitudes</span>
-                </button>
+                {enabledFeatures.admin !== false && (
+                  <button
+                    id="mob-tab-admin"
+                    onClick={() => handleSelectTab("admin")}
+                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+                      activeTab === "admin"
+                        ? "bg-amber-500 text-slate-950"
+                        : "text-slate-300 hover:text-white hover:bg-slate-800"
+                    }`}
+                  >
+                    <ShieldAlert className="h-4 w-4 shrink-0" />
+                    <span>Aprobación de Solicitudes</span>
+                  </button>
+                )}
 
-                <button
-                  id="mob-tab-users"
-                  onClick={() => handleSelectTab("users")}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
-                    activeTab === "users"
-                      ? "bg-amber-500 text-slate-950"
-                      : "text-slate-300 hover:text-white hover:bg-slate-800"
-                  }`}
-                >
-                  <Users className="h-4 w-4 shrink-0" />
-                  <span>Control de Usuarios</span>
-                </button>
+                {enabledFeatures.users !== false && (
+                  <button
+                    id="mob-tab-users"
+                    onClick={() => handleSelectTab("users")}
+                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+                      activeTab === "users"
+                        ? "bg-amber-500 text-slate-950"
+                        : "text-slate-300 hover:text-white hover:bg-slate-800"
+                    }`}
+                  >
+                    <Users className="h-4 w-4 shrink-0" />
+                    <span>Control de Usuarios</span>
+                  </button>
+                )}
 
-                <button
-                  id="mob-tab-properties"
-                  onClick={() => handleSelectTab("properties")}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
-                    activeTab === "properties"
-                      ? "bg-amber-500 text-slate-950"
-                      : "text-slate-300 hover:text-white hover:bg-slate-800"
-                  }`}
-                >
-                  <Building className="h-4 w-4 shrink-0" />
-                  <span>Control de Inmuebles</span>
-                </button>
+                {enabledFeatures.properties !== false && (
+                  <button
+                    id="mob-tab-properties"
+                    onClick={() => handleSelectTab("properties")}
+                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+                      activeTab === "properties"
+                        ? "bg-amber-500 text-slate-950"
+                        : "text-slate-300 hover:text-white hover:bg-slate-800"
+                    }`}
+                  >
+                    <Building className="h-4 w-4 shrink-0" />
+                    <span>Control de Inmuebles</span>
+                  </button>
+                )}
 
-                <button
-                  id="mob-tab-guard-admin"
-                  onClick={() => handleSelectTab("guard")}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
-                    activeTab === "guard"
-                      ? "bg-amber-500 text-slate-950"
-                      : "text-slate-300 hover:text-white hover:bg-slate-800"
-                  }`}
-                >
-                  <Eye className="h-4 w-4 shrink-0" />
-                  <span>Monitoreo de Visitas</span>
-                </button>
+                {enabledFeatures.guard !== false && (
+                  <button
+                    id="mob-tab-guard-admin"
+                    onClick={() => handleSelectTab("guard")}
+                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+                      activeTab === "guard"
+                        ? "bg-amber-500 text-slate-950"
+                        : "text-slate-300 hover:text-white hover:bg-slate-800"
+                    }`}
+                  >
+                    <Eye className="h-4 w-4 shrink-0" />
+                    <span>Monitoreo de Visitas</span>
+                  </button>
+                )}
 
                 {(currentUser.role === "directiva" || currentUser.id === "u_admin") && (
                   <button
@@ -309,27 +326,29 @@ export default function Header({ currentUser, onLogout, activeTab, setActiveTab 
             )}
 
             {/* Payments Action */}
-            <button
-              id="mob-tab-payments"
-              onClick={() => handleSelectTab("payments")}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
-                activeTab === "payments"
-                  ? "bg-amber-500 text-slate-950"
-                  : "text-slate-300 hover:text-white hover:bg-slate-800"
-              }`}
-            >
-              <CreditCard className="h-4 w-4 shrink-0" />
-              <span>
-                {currentUser.role === "resident" 
-                  ? "Pagos de Vigilancia" 
-                  : (currentUser.role === "admin" || currentUser.role === "directiva") 
-                  ? "Control de Pagos" 
-                  : "Matriz de Solvencia"}
-              </span>
-            </button>
+            {enabledFeatures.payments !== false && (
+              <button
+                id="mob-tab-payments"
+                onClick={() => handleSelectTab("payments")}
+                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === "payments"
+                    ? "bg-amber-500 text-slate-950"
+                    : "text-slate-300 hover:text-white hover:bg-slate-800"
+                }`}
+              >
+                <CreditCard className="h-4 w-4 shrink-0" />
+                <span>
+                  {currentUser.role === "resident" 
+                    ? "Pagos de Vigilancia" 
+                    : (currentUser.role === "admin" || currentUser.role === "directiva") 
+                    ? "Control de Pagos" 
+                    : "Matriz de Solvencia"}
+                </span>
+              </button>
+            )}
 
             {/* Emails Simulator Action */}
-            {currentUser.role !== "vigilante" && (
+            {currentUser.role !== "vigilante" && enabledFeatures.emails !== false && (
               <button
                 id="mob-tab-emails"
                 onClick={() => handleSelectTab("emails")}
