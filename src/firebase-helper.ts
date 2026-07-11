@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { initializeApp, getApps } from "firebase-admin/app";
+import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 
 interface FirebaseConfig {
@@ -33,10 +33,14 @@ export function initFirebase() {
     }
 
     if (getApps().length === 0) {
-      initializeApp({
-        projectId: projectId
-      });
-    }
+  initializeApp({
+    credential: cert({
+      projectId: process.env.FIREBASE_PROJECT_ID || projectId,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+    }),
+  });
+}
 
     // Target the named database if defined, otherwise default
     firestoreDb = databaseId ? getFirestore(databaseId) : getFirestore();
