@@ -108,6 +108,27 @@ export default function App() {
     }
   }, [currentUser]);
 
+  // Validar sesión del usuario al iniciar o cambiar de usuario
+  useEffect(() => {
+    const validateSession = async () => {
+      if (!currentUser) return;
+      try {
+        const res = await fetch(`/api/auth/validate?userId=${currentUser.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.valid === false) {
+            console.log("Sesión inválida o usuario inexistente / inactivo. Cerrando sesión...");
+            setCurrentUser(null);
+            localStorage.removeItem("cl_user");
+          }
+        }
+      } catch (err) {
+        console.error("Error al validar sesión:", err);
+      }
+    };
+    validateSession();
+  }, [currentUser]);
+
   useEffect(() => {
     if (activeTab !== "home" && activeTab !== "config" && enabledFeatures[activeTab] === false) {
       setActiveTab("home");

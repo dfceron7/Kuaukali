@@ -353,6 +353,18 @@ app.post("/api/auth/login", (req, res) => {
   res.json(safeUser);
 });
 
+app.get("/api/auth/validate", (req, res) => {
+  const { userId } = req.query;
+  if (!userId) {
+    return res.status(400).json({ valid: false, error: "userId es requerido" });
+  }
+  const user = (db.users || []).find((u) => u.id === userId);
+  if (!user || user.isActive === false) {
+    return res.json({ valid: false });
+  }
+  res.json({ valid: true });
+});
+
 app.post("/api/auth/register", (req, res) => {
   const { username, password, house, email } = req.body;
   
