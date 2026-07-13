@@ -116,6 +116,14 @@ export default function App() {
 
   // Notifications & Toasts state
   const [toasts, setToasts] = useState<ToastAlert[]>([]);
+  const [hasUnreadEmails, setHasUnreadEmails] = useState<boolean>(false);
+
+  // Clear unread emails badge when user opens the mailbox
+  useEffect(() => {
+    if (activeTab === "emails") {
+      setHasUnreadEmails(false);
+    }
+  }, [activeTab]);
   const [notificationPermission, setNotificationPermission] = useState<string>(() => {
     if (typeof window !== "undefined") {
       const savedUser = localStorage.getItem("cl_user");
@@ -470,6 +478,79 @@ export default function App() {
   useEffect(() => {
     setActiveTab("home");
   }, [currentUser]);
+
+  // Real-time system events listener via Server-Sent Events (SSE)
+  useEffect(() => {
+    if (!currentUser) return;
+
+    console.log("🔌 [SSE App] Conectando a canal de eventos del sistema en tiempo real...");
+    const eventSource = new EventSource("/api/system-events");
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log("⚡ [SSE App Event] Recibido:", data);
+
+        if (data.type === "communication_sent") {
+          const { subject, bodyText, recipients } = data;
+          
+          // Check if this logged in user is one of the recipients
+          const userEmailLower = currentUser.email ? currentUser.email.trim().toLowerCase() : "";
+          const isRecipient = recipients && recipients.some((r: string) => r.toLowerCase() === userEmailLower);
+
+          if (isRecipient) {
+            // Trigger an in-app toast notification!
+            const newToastId = "toast_comm_" + Math.random().toString(36).substring(2, 9);
+            const title = `📢 NUEVO COMUNICADO`;
+            const message = `${subject}: "${bodyText.length > 80 ? bodyText.substring(0, 80) + "..." : bodyText}"`;
+            
+            const newToast: ToastAlert = {
+              id: newToastId,
+              title,
+              message,
+              type: "success",
+              date: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+            };
+            
+            setToasts((prev) => [newToast, ...prev]);
+
+            // Auto-dismiss toast after 12 seconds
+            setTimeout(() => {
+              setToasts((prev) => prev.filter((t) => t.id !== newToastId));
+            }, 12000);
+
+            // Also trigger native browser notification if allowed
+            if (typeof window !== "undefined" && "Notification" in window && (Notification.permission === "granted" || notificationPermission === "granted")) {
+              try {
+                new Notification(`📢 Nuevo Comunicado: ${subject}`, {
+                  body: bodyText.length > 150 ? bodyText.substring(0, 150) + "..." : bodyText,
+                  icon: "/favicon.ico"
+                });
+              } catch (err) {
+                console.warn("Could not trigger browser Notification for communication:", err);
+              }
+            }
+
+            // Flag unread emails badge if not already looking at the tab
+            if (activeTab !== "emails") {
+              setHasUnreadEmails(true);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error al procesar evento del sistema:", err);
+      }
+    };
+
+    eventSource.onerror = (err) => {
+      console.warn("⚠️ [SSE App] Error o desconexión del canal SSE de eventos del sistema.", err);
+    };
+
+    return () => {
+      console.log("🔌 [SSE App] Cerrando canal de eventos del sistema.");
+      eventSource.close();
+    };
+  }, [currentUser, activeTab, notificationPermission]);
 
   // Handle standard user logins
   const handleLogin = async (e: React.FormEvent) => {
@@ -1143,13 +1224,16 @@ export default function App() {
                 <button
                   id="bar-tab-emails"
                   onClick={() => setActiveTab("emails")}
-                  className={`px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+                  className={`px-4 py-2 text-xs font-bold rounded-xl transition-all relative flex items-center space-x-1.5 ${
                     activeTab === "emails"
                       ? "bg-slate-900 text-white"
                       : "text-slate-600 hover:text-slate-950"
                   }`}
                 >
-                  Notificaciones de Correo
+                  <span>Notificaciones de Correo</span>
+                  {hasUnreadEmails && (
+                    <span className="h-2 w-2 rounded-full bg-rose-500 animate-pulse shrink-0" />
+                  )}
                 </button>
               )}
             </div>
@@ -1293,7 +1377,17 @@ export default function App() {
                   </div>
                   <p className="mt-1 text-slate-600 font-medium break-words">{toast.message}</p>
                   
-                  {currentUser?.role === "resident" && (
+                  {toast.title.includes("COMUNICADO") ? (
+                    <button
+                      onClick={() => {
+                        setActiveTab("emails");
+                        setToasts((prev) => prev.filter((t) => t.id !== toast.id));
+                      }}
+                      className="mt-2 text-[10px] font-bold text-indigo-600 hover:text-indigo-700 hover:underline flex items-center space-x-1 cursor-pointer"
+                    >
+                      <span>Ir al Buzón de Correos</span>
+                    </button>
+                  ) : currentUser?.role === "resident" && (
                     <button
                       onClick={() => {
                         setActiveTab("history");

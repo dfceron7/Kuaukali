@@ -123,6 +123,36 @@ export default function EmailSimulator({ currentUser }: EmailSimulatorProps) {
     if (isAuthorizedToSend) {
       fetchUsers();
     }
+
+    // Connect to real-time system events stream for instant email updates
+    console.log("🔌 [SSE Emails] Conectando a canal de eventos en tiempo real...");
+    const eventSource = new EventSource("/api/system-events");
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === "communication_sent") {
+          const userEmailLower = currentUser.email ? currentUser.email.trim().toLowerCase() : "";
+          const isRecipient = data.recipients && data.recipients.some((r: string) => r.toLowerCase() === userEmailLower);
+          
+          if (isRecipient || ["admin", "sysadmin", "directiva"].includes(currentUser.role)) {
+            console.log("⚡ [SSE Emails Event] Nuevo comunicado detectado. Actualizando buzón...");
+            fetchEmails();
+          }
+        }
+      } catch (err) {
+        console.error("Error al procesar evento en buzón de correos:", err);
+      }
+    };
+
+    eventSource.onerror = (err) => {
+      console.warn("⚠️ [SSE Emails] Error o desconexión en canal de eventos del buzón.", err);
+    };
+
+    return () => {
+      console.log("🔌 [SSE Emails] Desconectando canal de eventos.");
+      eventSource.close();
+    };
   }, [currentUser]);
 
   const handleToggleHouseSelection = (houseName: string) => {

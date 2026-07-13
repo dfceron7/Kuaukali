@@ -159,12 +159,34 @@ export default function PaymentModule({ currentUser }: PaymentModuleProps) {
   useEffect(() => {
     fetchData();
 
-    // Auto-refresh payments and validation queue every 5 seconds for immediate real-time response
+    // Event-driven real-time updates via Server-Sent Events (SSE)
+    console.log("🔌 [SSE] Conectando a canal de eventos de pagos en tiempo real...");
+    const eventSource = new EventSource("/api/payments/events");
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log("⚡ [SSE Event] Actualización de pagos recibida:", data);
+        fetchData();
+      } catch (err) {
+        console.error("Error al procesar evento de pagos:", err);
+      }
+    };
+
+    eventSource.onerror = (err) => {
+      console.warn("⚠️ [SSE] Error o desconexión en canal SSE. Usando fallback de consulta periódica.", err);
+    };
+
+    // Polling fallback (runs every 10 seconds to ensure fresh data under any network condition)
     const interval = setInterval(() => {
       fetchData();
-    }, 5000);
+    }, 10000);
 
-    return () => clearInterval(interval);
+    return () => {
+      console.log("🔌 [SSE] Cerrando canal de eventos de pagos.");
+      eventSource.close();
+      clearInterval(interval);
+    };
   }, [currentUser]);
 
   // Handle month selection

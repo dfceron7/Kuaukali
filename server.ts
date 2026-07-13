@@ -212,10 +212,18 @@ async function syncFromFirestoreOnBoot() {
       const fireConfig = await loadFromFirestore("config");
 
       db.users = fireUsers;
-      db.reservations = fireReservations || [];
-      db.emails = fireEmails || [];
-      db.visitorPasses = firePasses || [];
-      db.payments = firePayments || [];
+      if (fireReservations !== null && fireReservations !== undefined) {
+        db.reservations = fireReservations;
+      }
+      if (fireEmails !== null && fireEmails !== undefined) {
+        db.emails = fireEmails;
+      }
+      if (firePasses !== null && firePasses !== undefined) {
+        db.visitorPasses = firePasses;
+      }
+      if (firePayments !== null && firePayments !== undefined) {
+        db.payments = firePayments;
+      }
 
       if (fireProperties && fireProperties.length > 0) {
         db.properties = fireProperties;
@@ -727,6 +735,9 @@ app.post("/api/admin/properties/:id/pay", (req, res) => {
   db.payments.push(newPayment);
   saveDB(db);
 
+  // Broadcast to all connected administrators and residents for real-time reactive UI
+  broadcastPaymentUpdate({ type: "payment_created", paymentId: newPayment.id, house: newPayment.house, status: "approved" });
+
   // Send virtual email receipt (same style as other approved payments)
   let subject = `✓ Comprobante de Pago Aprobado - Recibo ${newPayment.correlative} - KuauKali`;
   let bodyHtml = `
@@ -1212,6 +1223,15 @@ app.post("/api/communications/send", (req, res) => {
 
   saveDB(db);
 
+  // Broadcast communication_sent to all connected SSE clients (e.g., residents) for real-time notification
+  broadcastPaymentUpdate({
+    type: "communication_sent",
+    subject,
+    bodyText,
+    recipients,
+    imageUrl
+  });
+
   return res.json({ success: true, count: recipients.length });
 });
 
@@ -1548,41 +1568,75 @@ function getHousePaymentStatus(houseName: string) {
   };
 }
 
+// Real-time payments event synchronization via Server-Sent Events (SSE)
+let sseClients: any[] = [];
+
+function broadcastPaymentUpdate(data?: any) {
+  const payload = JSON.stringify(data || { type: "refresh" });
+  console.log(`📡 [SSE Broadcast] Enviando actualización a ${sseClients.length} cliente(s)...`);
+  sseClients.forEach((c) => {
+    try {
+      c.res.write(`data: ${payload}\n\n`);
+    } catch (err) {
+      console.warn("⚠️ Error enviando evento a cliente SSE:", err);
+    }
+  });
+}
+
+// SSE Endpoint for payments and system events
+app.get(["/api/payments/events", "/api/system-events"], (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  const clientId = Date.now();
+  console.log(`🔌 [SSE Connection] Cliente conectado id: ${clientId} en ruta: ${req.path}`);
+  
+  const newClient = {
+    id: clientId,
+    res
+  };
+  sseClients.push(newClient);
+
+  req.on("close", () => {
+    console.log(`🔌 [SSE Connection] Cliente desconectado id: ${clientId}`);
+    sseClients = sseClients.filter((c) => c.id !== clientId);
+  });
+});
+
 // Get vigilance payment records
 app.get("/api/payments", (req, res) => {
   const { userId, role, email, username, house } = req.query;
   let payments = db.payments || [];
   
-  if (role === "resident") {
+  const userRole = role ? String(role).trim().toLowerCase() : "";
+
+  if (userRole === "resident") {
+    // Collect all search keys in lowercase for comparison
+    const uId = userId ? String(userId).trim().toLowerCase() : "";
+    const uEmail = email ? String(email).trim().toLowerCase() : "";
+    const uName = username ? String(username).trim().toLowerCase() : "";
+    const uHouse = house ? String(house).trim().toLowerCase() : "";
+
+    // Find user in DB to enrich search keys if possible
     let user = userId ? db.users.find(u => u.id === userId) : null;
-    
-    // Fallback search strategies
     if (!user && email) {
-      user = db.users.find(u => u.email && u.email.toLowerCase() === (email as string).trim().toLowerCase());
+      user = db.users.find(u => u.email && u.email.toLowerCase() === uEmail);
     }
     if (!user && username) {
-      user = db.users.find(u => u.username && u.username.toLowerCase() === (username as string).trim().toLowerCase());
+      user = db.users.find(u => u.username && u.username.toLowerCase() === uName);
     }
 
     const possibleIds = new Set<string>();
     const possibleEmails = new Set<string>();
     const possibleHouses = new Set<string>();
 
-    // From Query Params (always trust what the authenticated client sends)
-    if (userId) possibleIds.add((userId as string).trim().toLowerCase());
-    if (email) {
-      const e = (email as string).trim().toLowerCase();
-      possibleEmails.add(e);
-    }
-    if (username) {
-      const u = (username as string).trim().toLowerCase();
-      possibleEmails.add(u);
-    }
-    if (house) {
-      possibleHouses.add((house as string).trim().toLowerCase());
-    }
+    if (uId) possibleIds.add(uId);
+    if (uEmail) possibleEmails.add(uEmail);
+    if (uName) possibleEmails.add(uName);
+    if (uHouse) possibleHouses.add(uHouse);
 
-    // From User Object if found in the DB (supplemental)
     if (user) {
       if (user.id) possibleIds.add(user.id.trim().toLowerCase());
       if (user.email) possibleEmails.add(user.email.trim().toLowerCase());
@@ -1591,19 +1645,20 @@ app.get("/api/payments", (req, res) => {
     }
 
     payments = payments.filter((p) => {
-      const pUserId = p.userId ? p.userId.trim().toLowerCase() : "";
-      const pUserEmail = p.userEmail ? p.userEmail.trim().toLowerCase() : "";
-      const pUserName = p.userName ? p.userName.trim().toLowerCase() : "";
-      const pHouse = p.house ? p.house.trim().toLowerCase() : "";
+      const pUserId = p.userId ? String(p.userId).trim().toLowerCase() : "";
+      const pUserEmail = p.userEmail ? String(p.userEmail).trim().toLowerCase() : "";
+      const pUserName = p.userName ? String(p.userName).trim().toLowerCase() : "";
+      const pHouse = p.house ? String(p.house).trim().toLowerCase() : "";
 
-      // Match ID
-      if (pUserId && possibleIds.has(pUserId)) return true;
-      // Match Email/Username
-      if (pUserEmail && possibleEmails.has(pUserEmail)) return true;
-      if (pUserName && possibleEmails.has(pUserName)) return true;
-      // Match House
+      // Check for matching House (highly reliable for resident tracking)
       if (pHouse && possibleHouses.has(pHouse)) return true;
-      
+      // Check for matching User ID
+      if (pUserId && possibleIds.has(pUserId)) return true;
+      // Check for matching Email
+      if (pUserEmail && possibleEmails.has(pUserEmail)) return true;
+      // Check for matching Username
+      if (pUserName && possibleEmails.has(pUserName)) return true;
+
       return false;
     });
   }
@@ -1665,6 +1720,9 @@ app.post("/api/payments", (req, res) => {
   db.payments.push(newPayment);
   saveDB(db);
 
+  // Broadcast to all connected administrators and residents for real-time reactive UI
+  broadcastPaymentUpdate({ type: "payment_created", paymentId: newPayment.id, house: newPayment.house });
+
   res.status(201).json(newPayment);
 });
 
@@ -1687,6 +1745,9 @@ app.post("/api/payments/:id/verify", (req, res) => {
   }
 
   saveDB(db);
+
+  // Broadcast to all connected administrators and residents for real-time reactive UI
+  broadcastPaymentUpdate({ type: "payment_verified", paymentId: payment.id, house: payment.house, status: action });
 
   // Send simulated email
   let subject = "";

@@ -21,7 +21,9 @@ import {
   ShieldCheck,
   UserCheck,
   Bell,
-  BellRing
+  BellRing,
+  Share2,
+  Loader2
 } from "lucide-react";
 
 interface VisitorManagementProps {
@@ -59,6 +61,7 @@ export default function VisitorManagement({
 
   // Active viewing pass
   const [selectedPass, setSelectedPass] = useState<VisitorPass | null>(null);
+  const [sharingLoading, setSharingLoading] = useState<boolean>(false);
 
   const fetchPasses = async () => {
     if (onRefreshPasses) {
@@ -139,6 +142,76 @@ export default function VisitorManagement({
   // Simulated printing or downloading
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleShare = async () => {
+    if (!selectedPass) return;
+    setSharingLoading(true);
+    
+    const text = `Hola, te comparto el pase de acceso para Residencial KuauKali:\n\n*Invitado*: ${selectedPass.firstName} ${selectedPass.lastName}\n*Casa Destino*: ${selectedPass.house}\n*Código de Acceso*: ${selectedPass.passCode}\n*Fecha*: ${selectedPass.entryDate}\n\nPor favor preséntalo en caseta de vigilancia para ingresar. ¡Saludos!`;
+
+    try {
+      const el = document.getElementById("print-pass-area");
+      if (!el) {
+        throw new Error("No se encontró el área de impresión del pase.");
+      }
+
+      // Lazy import html-to-image
+      const { toBlob } = await import("html-to-image");
+      
+      const blob = await toBlob(el, {
+        cacheBust: true,
+        backgroundColor: "#f8fafc", // slate-50
+        pixelRatio: 2, // high quality
+        style: {
+          transform: "scale(1)",
+          margin: "0",
+          borderRadius: "16px",
+        }
+      });
+
+      if (!blob) {
+        throw new Error("No se pudo generar la imagen del pase.");
+      }
+
+      const file = new File([blob], `Pase_Acceso_${selectedPass.passCode}.png`, { type: "image/png" });
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: "Pase de Acceso - Residencial KuauKali",
+          text: text,
+        });
+      } else {
+        // Fallback for browsers/platforms that do not support navigator.share or file sharing (like many desktops)
+        await navigator.clipboard.writeText(text);
+
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `Pase_Acceso_${selectedPass.passCode}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        alert(
+          `¡Imagen del pase descargada y código de acceso copiado al portapapeles!\n\nEste dispositivo o navegador no admite compartir archivos directamente con la aplicación nativa. Hemos descargado el ticket en formato de imagen (.png) y copiado el mensaje de texto para que puedas pegarlo y enviarlo fácilmente por WhatsApp o la app de tu preferencia.`
+        );
+      }
+    } catch (err: any) {
+      console.error("Error al compartir pase:", err);
+      try {
+        await navigator.clipboard.writeText(text);
+        alert(
+          `El código del pase de acceso ha sido copiado al portapapeles para WhatsApp (No pudimos generar el ticket en imagen: ${err.message || err}).`
+        );
+      } catch (clipErr) {
+        alert(`Ocurrió un error al compartir: ${err.message || err}`);
+      }
+    } finally {
+      setSharingLoading(false);
+    }
   };
 
   return (
@@ -512,6 +585,7 @@ export default function VisitorManagement({
                       src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(selectedPass.passCode)}`} 
                       alt="Código QR de Pase de Visita" 
                       className="w-32 h-32 border border-slate-150 p-2 rounded-xl bg-white"
+                      crossOrigin="anonymous"
                       referrerPolicy="no-referrer"
                     />
                   </div>
@@ -561,16 +635,16 @@ export default function VisitorManagement({
                   <span>Imprimir Pase</span>
                 </button>
                 <button
-                  onClick={() => {
-                    alert(`El código de acceso "${selectedPass.passCode}" ha sido copiado al portapapeles para compartir por WhatsApp.`);
-                    navigator.clipboard.writeText(
-                      `Hola, te comparto el pase de acceso para Residencial KuauKali:\n\n*Invitado*: ${selectedPass.firstName} ${selectedPass.lastName}\n*Casa Destino*: ${selectedPass.house}\n*Código de Acceso*: ${selectedPass.passCode}\n*Fecha*: ${selectedPass.entryDate}\n\nPor favor preséntalo en caseta de vigilancia.`
-                    );
-                  }}
-                  className="bg-amber-500 hover:bg-amber-600 text-slate-950 py-2.5 rounded-xl flex items-center justify-center space-x-1.5 cursor-pointer transition-colors"
+                  onClick={handleShare}
+                  disabled={sharingLoading}
+                  className="bg-amber-500 hover:bg-amber-600 disabled:bg-amber-400 text-slate-950 py-2.5 rounded-xl flex items-center justify-center space-x-1.5 cursor-pointer transition-colors"
                 >
-                  <Download className="h-4 w-4" />
-                  <span>Compartir Pase</span>
+                  {sharingLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Share2 className="h-4 w-4" />
+                  )}
+                  <span>{sharingLoading ? "Generando..." : "Compartir Pase"}</span>
                 </button>
               </div>
 
