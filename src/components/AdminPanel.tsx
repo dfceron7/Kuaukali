@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Reservation, ReservationStatus } from "../types";
-import { ShieldAlert, AlertTriangle, Eye, Check, X, Calendar, DollarSign, Clock, Users, RefreshCw, FileText, Ban, RotateCcw, MessageSquare, Copy, CheckCheck } from "lucide-react";
+import { ShieldAlert, AlertTriangle, Eye, Check, X, Calendar, DollarSign, Clock, Users, RefreshCw, FileText, Ban, RotateCcw, MessageSquare, Copy, CheckCheck, Share2, Loader2, Download, Image } from "lucide-react";
 
 interface AdminPanelProps {
   reservations: Reservation[];
@@ -25,6 +25,20 @@ export default function AdminPanel({ reservations, onActionTriggered }: AdminPan
   const [exportMonth, setExportMonth] = useState<string>(currentMonthNum); // Default current month
   const [exportYear, setExportYear] = useState<string>(currentYearNum); // Default current year
   const [copiedSuccess, setCopiedSuccess] = useState<boolean>(false);
+  const [sharingLoading, setSharingLoading] = useState<boolean>(false);
+  const [showPlainTextFallback, setShowPlainTextFallback] = useState<boolean>(false);
+  const [canShare, setCanShare] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (typeof navigator !== "undefined" && navigator.canShare) {
+      try {
+        const file = new File([], "test.png", { type: "image/png" });
+        setCanShare(navigator.canShare({ files: [file] }));
+      } catch (e) {
+        setCanShare(false);
+      }
+    }
+  }, []);
 
   const monthsEngAbbr = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const monthsList = [
@@ -41,6 +55,87 @@ export default function AdminPanel({ reservations, onActionTriggered }: AdminPan
     { value: "11", label: "Noviembre" },
     { value: "12", label: "Diciembre" }
   ];
+
+  const handleExportImage = async (share: boolean) => {
+    setSharingLoading(true);
+    const monthLabel = monthsList.find(m => m.value === exportMonth)?.label || exportMonth;
+    const text = `Calendario de Reservas de Casa Club - ${monthLabel} ${exportYear}\nAdjunto comparto la tabla de reservas confirmadas para este mes.`;
+
+    try {
+      const el = document.getElementById("whatsapp-table-to-share");
+      if (!el) {
+        throw new Error("No se encontró el elemento de la tabla para exportar.");
+      }
+
+      const { toBlob } = await import("html-to-image");
+
+      const blob = await toBlob(el, {
+        cacheBust: true,
+        backgroundColor: "#ffffff", // Pure white for perfect image contrast
+        pixelRatio: 2, // high quality
+        style: {
+          transform: "scale(1)",
+          margin: "0",
+        }
+      });
+
+      if (!blob) {
+        throw new Error("No se pudo generar la imagen de la tabla.");
+      }
+
+      const fileName = `Reservas_Club_${monthLabel}_${exportYear}.png`;
+
+      if (share && navigator.canShare && navigator.canShare({ files: [new File([], 'test.png', { type: 'image/png' })] })) {
+        const file = new File([blob], fileName, { type: "image/png" });
+        await navigator.share({
+          files: [file],
+          title: `Reservas Casa Club - ${monthLabel} ${exportYear}`,
+          text: text,
+        });
+      } else {
+        // Download fallback or direct download request
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        if (share) {
+          // If they requested share but it's not supported, copy plain text as helper and tell them we downloaded
+          const filtered = reservations
+            .filter(r => {
+              if (r.status !== "approved") return false;
+              const parts = r.date.split("-");
+              return parts[0] === exportYear && parts[1] === exportMonth;
+            })
+            .sort((a, b) => {
+              if (a.date !== b.date) return a.date.localeCompare(b.date);
+              return a.startTime.localeCompare(b.startTime);
+            });
+
+          const plainText = filtered.map(row => {
+            return `${row.userName || "N/A"} | ${row.house} | ${formatDateToWhatsApp(row.date)} | ${formatTimeWithSeconds(row.startTime)} | ${formatTimeWithSeconds(row.endTime)}`;
+          }).join("\n");
+
+          await navigator.clipboard.writeText(plainText);
+
+          alert(
+            `¡Imagen descargada y texto copiado al portapapeles!\n\nEste dispositivo o navegador no admite compartir archivos directamente con la aplicación nativa. Hemos descargado la tabla de reservas en formato de imagen (.png) y copiado el resumen en texto para que lo pegues fácilmente en WhatsApp.`
+          );
+        } else {
+          alert(`¡Imagen de la tabla de reservas descargada correctamente!`);
+        }
+      }
+    } catch (err: any) {
+      console.error("Error al exportar tabla:", err);
+      alert(`Ocurrió un error al exportar la tabla como imagen: ${err.message || err}`);
+    } finally {
+      setSharingLoading(false);
+    }
+  };
 
   function formatDateToWhatsApp(dateStr: string): string {
     if (!dateStr) return "";
@@ -505,6 +600,7 @@ export default function AdminPanel({ reservations, onActionTriggered }: AdminPan
                 onClick={() => {
                   setShowWhatsAppModal(false);
                   setCopiedSuccess(false);
+                  setShowPlainTextFallback(false);
                 }}
                 className="p-1 text-emerald-100 hover:text-white rounded hover:bg-emerald-700 transition-colors"
               >
@@ -592,91 +688,114 @@ export default function AdminPanel({ reservations, onActionTriggered }: AdminPan
                     return `${row.userName || "N/A"} | ${row.house} | ${formatDateToWhatsApp(row.date)} | ${formatTimeWithSeconds(row.startTime)} | ${formatTimeWithSeconds(row.endTime)}`;
                   }).join("\n");
 
+                  const activeMonthLabel = monthsList.find(m => m.value === exportMonth)?.label || "Mes";
+
                   return (
-                    <div className="space-y-4">
-                      {/* Visual Table */}
-                      <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white shadow-3xs">
-                        <table className="w-full text-left border-collapse text-xs">
-                          <thead>
-                            <tr className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200 font-mono">
-                              <th className="px-4 py-2.5">Propietario</th>
-                              <th className="px-4 py-2.5">Casa o Lote</th>
-                              <th className="px-4 py-2.5">Fecha del Evento</th>
-                              <th className="px-4 py-2.5">Hora de Inicio</th>
-                              <th className="px-4 py-2.5">Hora de Fin</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-150 font-sans text-slate-700">
-                            {filtered.map((row, idx) => (
-                              <tr key={idx} className="hover:bg-slate-50/50">
-                                <td className="px-4 py-2.5 font-bold text-slate-900">{row.userName || "N/A"}</td>
-                                <td className="px-4 py-2.5 text-slate-700 font-semibold">{row.house}</td>
-                                <td className="px-4 py-2.5 font-mono text-xs">{formatDateToWhatsApp(row.date)}</td>
-                                <td className="px-4 py-2.5 font-mono text-xs text-slate-600 font-bold">
-                                  {formatTimeWithSeconds(row.startTime)}
-                                </td>
-                                <td className="px-4 py-2.5 font-mono text-xs text-slate-600 font-bold">
-                                  {formatTimeWithSeconds(row.endTime)}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                    <div className="space-y-6">
+                      
+                      {/* Image Export Target (Beautiful Styled Card matching Image 1) */}
+                      <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs bg-slate-100 p-3">
+                        <div className="text-[11px] font-bold text-slate-500 mb-2 font-mono flex items-center justify-between">
+                          <span>VISTA PREVIA DE LA TABLA (SE GUARDARÁ COMO IMAGEN)</span>
+                          <Image className="h-3.5 w-3.5 text-slate-400" />
+                        </div>
+                        
+                        <div 
+                          id="whatsapp-table-to-share" 
+                          className="bg-white p-6 rounded-2xl border border-slate-200 max-w-full overflow-hidden"
+                        >
+                          {/* Banner Header */}
+                          <div className="bg-emerald-700 text-white p-4 rounded-t-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 border border-emerald-800">
+                            <div>
+                              <h3 className="text-sm font-black uppercase tracking-wider font-sans">Residencial KuauKali</h3>
+                              <p className="text-[10px] font-mono opacity-90 mt-0.5">Calendario de Reservas de Casa Club</p>
+                            </div>
+                            <span className="bg-emerald-950 text-emerald-300 font-bold font-mono text-[10px] px-2.5 py-1 rounded-md self-start sm:self-auto uppercase tracking-wide">
+                              {activeMonthLabel} {exportYear}
+                            </span>
+                          </div>
+
+                          {/* Table Body - Matching exactly Image 1 */}
+                          <div className="bg-white border-x border-b border-slate-200 rounded-b-xl overflow-x-auto p-1 shadow-3xs">
+                            <table className="w-full text-left border-collapse text-xs min-w-[500px]">
+                              <thead>
+                                <tr className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200 font-mono">
+                                  <th className="px-4 py-3 font-semibold text-slate-500">Propietario</th>
+                                  <th className="px-4 py-3 font-semibold text-slate-500">Casa o Lote</th>
+                                  <th className="px-4 py-3 font-semibold text-slate-500">Fecha del Evento</th>
+                                  <th className="px-4 py-3 font-semibold text-slate-500">Hora de Inicio</th>
+                                  <th className="px-4 py-3 font-semibold text-slate-500">Hora de Fin</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-150 font-sans text-slate-800">
+                                {filtered.map((row, idx) => (
+                                  <tr key={idx} className="hover:bg-slate-50/50">
+                                    <td className="px-4 py-3 font-black text-slate-950">{row.userName || "N/A"}</td>
+                                    <td className="px-4 py-3 text-slate-900 font-bold">{row.house}</td>
+                                    <td className="px-4 py-3 font-semibold text-slate-800">{formatDateToWhatsApp(row.date)}</td>
+                                    <td className="px-4 py-3 font-mono text-xs text-slate-900 font-black">
+                                      {formatTimeWithSeconds(row.startTime)}
+                                    </td>
+                                    <td className="px-4 py-3 font-mono text-xs text-slate-900 font-black">
+                                      {formatTimeWithSeconds(row.endTime)}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                            
+                            {/* Inner Footer inside image */}
+                            <div className="p-3 bg-slate-50 border-t border-slate-150 flex items-center justify-between text-[9px] text-slate-400 font-mono rounded-b-lg">
+                              <span>Sincronizado con Administración KuauKali</span>
+                              <span>Generado: {new Date().toLocaleDateString("es-SV")}</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
 
-                      {/* Monospaced text preview to copy */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wide font-mono">
-                            Texto para Whatsapp (Formato exacto):
-                          </label>
-                          <span className="text-[10px] text-slate-400 font-medium font-mono">Copia y pega en WhatsApp</span>
-                        </div>
-                        <div className="relative">
-                          <textarea
-                            id="whatsapp-raw-text"
-                            readOnly
-                            value={textToCopyVal}
-                            className="w-full h-40 p-4 font-mono text-xs text-slate-200 bg-slate-950 rounded-xl border border-slate-800 focus:outline-hidden resize-none leading-relaxed"
-                          />
+                      {/* Main Export & Share Actions */}
+                      <div className="pt-2">
+                        {canShare ? (
                           <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(textToCopyVal)
-                                .then(() => {
-                                  setCopiedSuccess(true);
-                                  setTimeout(() => setCopiedSuccess(false), 3000);
-                                })
-                                .catch(() => {
-                                  // Fallback manual
-                                  const tx = document.getElementById("whatsapp-raw-text") as HTMLTextAreaElement;
-                                  if (tx) {
-                                    tx.select();
-                                    document.execCommand("copy");
-                                    setCopiedSuccess(true);
-                                    setTimeout(() => setCopiedSuccess(false), 3000);
-                                  }
-                                });
-                            }}
-                            className={`absolute top-3 right-3 p-2 rounded-lg border transition-all flex items-center space-x-1 text-xs font-bold cursor-pointer shadow-sm ${
-                              copiedSuccess
-                                ? "bg-emerald-600 text-white border-emerald-500"
-                                : "bg-slate-900 text-white border-slate-800 hover:bg-slate-800"
-                            }`}
+                            type="button"
+                            onClick={() => handleExportImage(true)}
+                            disabled={sharingLoading}
+                            className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-bold py-3.5 px-4 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center space-x-2 cursor-pointer text-sm"
                           >
-                            {copiedSuccess ? (
+                            {sharingLoading ? (
                               <>
-                                <CheckCheck className="h-4 w-4 shrink-0" />
-                                <span>¡Copiado!</span>
+                                <Loader2 className="animate-spin h-5 w-5" />
+                                <span>Generando imagen...</span>
                               </>
                             ) : (
                               <>
-                                <Copy className="h-4 w-4 shrink-0" />
-                                <span>Copiar Tabla</span>
+                                <Share2 className="h-5 w-5" />
+                                <span>Compartir en WhatsApp</span>
                               </>
                             )}
                           </button>
-                        </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleExportImage(false)}
+                            disabled={sharingLoading}
+                            className="w-full bg-slate-900 hover:bg-slate-800 disabled:bg-slate-600 text-white font-bold py-3.5 px-4 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center space-x-2 cursor-pointer text-sm"
+                          >
+                            {sharingLoading ? (
+                              <>
+                                <Loader2 className="animate-spin h-5 w-5" />
+                                <span>Generando imagen...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Download className="h-5 w-5" />
+                                <span>Descargar Imagen</span>
+                              </>
+                            )}
+                          </button>
+                        )}
                       </div>
+
                     </div>
                   );
                 })()}
@@ -687,14 +806,15 @@ export default function AdminPanel({ reservations, onActionTriggered }: AdminPan
             {/* Footer */}
             <div className="px-6 py-4 flex justify-between items-center bg-slate-100 border-t border-slate-200 shrink-0">
               <span className="text-[10px] text-slate-500 font-medium">
-                Pega este formato directo en WhatsApp para mantener a los residentes informados.
+                Genera, descarga o comparte la imagen directamente en tus grupos de WhatsApp.
               </span>
               <button
                 onClick={() => {
                   setShowWhatsAppModal(false);
                   setCopiedSuccess(false);
+                  setShowPlainTextFallback(false);
                 }}
-                className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-lg cursor-pointer"
+                className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-4 py-2 rounded-lg cursor-pointer animate-none"
               >
                 Cerrar Ventana
               </button>
