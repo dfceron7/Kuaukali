@@ -1,12 +1,7 @@
 import fs from "fs";
 import path from "path";
-import { initializeApp, getApps, cert } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
-
-interface FirebaseConfig {
-  projectId: string;
-  firestoreDatabaseId: string;
-}
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc } from "firebase/firestore";
 
 let firestoreDb: any = null;
 let isInitialized = false;
@@ -24,31 +19,37 @@ export function initFirebase() {
     const configContent = fs.readFileSync(configPath, "utf-8");
     const appletConfig = JSON.parse(configContent);
 
-    const projectId = appletConfig.projectId;
-    const databaseId = appletConfig.firestoreDatabaseId;
+    const firebaseConfig = {
+      apiKey: appletConfig.apiKey,
+      authDomain: appletConfig.authDomain,
+      projectId: appletConfig.projectId,
+      storageBucket: appletConfig.storageBucket,
+      messagingSenderId: appletConfig.messagingSenderId,
+      appId: appletConfig.appId,
+    };
 
-    if (!projectId) {
+    if (!firebaseConfig.projectId) {
       console.warn("⚠️ projectId no definido en la configuración de Firebase.");
       return null;
     }
 
+    let app;
     if (getApps().length === 0) {
-  initializeApp({
-    credential: cert({
-      projectId: process.env.FIREBASE_PROJECT_ID || projectId,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-    }),
-  });
-}
+      app = initializeApp(firebaseConfig);
+    } else {
+      app = getApp();
+    }
 
     // Target the named database if defined, otherwise default
-    firestoreDb = databaseId ? getFirestore(databaseId) : getFirestore();
+    firestoreDb = appletConfig.firestoreDatabaseId 
+      ? getFirestore(app, appletConfig.firestoreDatabaseId) 
+      : getFirestore(app);
+      
     isInitialized = true;
-    console.log("🔥 Firebase Admin conectado correctamente a Firestore. Database ID:", databaseId || "(default)");
+    console.log("🔥 Firebase Client conectado correctamente a Firestore. Database ID:", appletConfig.firestoreDatabaseId || "(default)");
     return firestoreDb;
   } catch (error) {
-    console.error("❌ Error al inicializar Firebase Admin:", error);
+    console.error("❌ Error al inicializar Firebase Client:", error);
     return null;
   }
 }
@@ -56,7 +57,7 @@ export function initFirebase() {
 /**
  * Guarda un documento en Firestore en segundo plano (no bloqueante)
  */
-export async function saveToFirestore(collection: string, docId: string, data: any) {
+export async function saveToFirestore(collectionName: string, docId: string, data: any) {
   try {
     const db = initFirebase();
     if (!db) return;
@@ -64,33 +65,34 @@ export async function saveToFirestore(collection: string, docId: string, data: a
     // Sanitizar datos para Firestore (remover valores undefined o funciones)
     const sanitizedData = JSON.parse(JSON.stringify(data));
     
-    await db.collection(collection).doc(docId).set(sanitizedData, { merge: true });
-    console.log(`✅ [Firestore Sync] Guardado exitoso en /${collection}/${docId}`);
+    const docRef = doc(db, collectionName, docId);
+    await setDoc(docRef, sanitizedData, { merge: true });
+    console.log(`✅ [Firestore Sync] Guardado exitoso en /${collectionName}/${docId}`);
   } catch (err) {
-    console.warn(`⚠️ [Firestore Sync] No se pudo guardar en /${collection}/${docId}:`, err instanceof Error ? err.message : err);
+    console.warn(`⚠️ [Firestore Sync] No se pudo guardar en /${collectionName}/${docId}:`, err instanceof Error ? err.message : err);
   }
 }
 
 /**
  * Carga todos los documentos de una colección en Firestore
  */
-export async function loadFromFirestore(collection: string): Promise<any[] | null> {
+export async function loadFromFirestore(collectionName: string): Promise<any[] | null> {
   try {
     const db = initFirebase();
     if (!db) return null;
 
-    const snapshot = await db.collection(collection).get();
-    if (snapshot.empty) {
+    const querySnapshot = await getDocs(collection(db, collectionName));
+    if (querySnapshot.empty) {
       return [];
     }
 
     const items: any[] = [];
-    snapshot.forEach((doc: any) => {
+    querySnapshot.forEach((doc) => {
       items.push({ id: doc.id, ...doc.data() });
     });
     return items;
   } catch (err) {
-    console.warn(`⚠️ [Firestore Sync] No se pudo cargar la colección /${collection}:`, err instanceof Error ? err.message : err);
+    console.warn(`⚠️ [Firestore Sync] No se pudo cargar la colección /${collectionName}:`, err instanceof Error ? err.message : err);
     return null;
   }
 }
@@ -98,14 +100,15 @@ export async function loadFromFirestore(collection: string): Promise<any[] | nul
 /**
  * Elimina un documento de Firestore en segundo plano
  */
-export async function deleteFromFirestore(collection: string, docId: string) {
+export async function deleteFromFirestore(collectionName: string, docId: string) {
   try {
     const db = initFirebase();
     if (!db) return;
 
-    await db.collection(collection).doc(docId).delete();
-    console.log(`🗑️ [Firestore Sync] Eliminado exitoso de /${collection}/${docId}`);
+    const docRef = doc(db, collectionName, docId);
+    await deleteDoc(docRef);
+    console.log(`🗑️ [Firestore Sync] Eliminado exitoso de /${collectionName}/${docId}`);
   } catch (err) {
-    console.warn(`⚠️ [Firestore Sync] No se pudo eliminar de /${collection}/${docId}:`, err instanceof Error ? err.message : err);
+    console.warn(`⚠️ [Firestore Sync] No se pudo eliminar de /${collectionName}/${docId}:`, err instanceof Error ? err.message : err);
   }
 }

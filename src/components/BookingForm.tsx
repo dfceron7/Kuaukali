@@ -6,6 +6,7 @@
 import React, { useState, useRef, DragEvent } from "react";
 import { User, Reservation } from "../types";
 import { Upload, FileText, Check, AlertCircle, Clock, Users, ArrowRight, ShieldCheck, CreditCard, RefreshCw } from "lucide-react";
+import { compressBase64Image } from "../utils/image-compress";
 
 interface BookingFormProps {
   currentUser: User;
@@ -81,9 +82,10 @@ export default function BookingForm({ currentUser, reservations, onReservationCr
     setErrorMsg(null);
 
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       if (typeof reader.result === "string") {
-        setFileBase64(reader.result);
+        const compressed = await compressBase64Image(reader.result);
+        setFileBase64(compressed);
       }
     };
     reader.readAsDataURL(file);

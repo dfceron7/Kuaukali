@@ -80,66 +80,136 @@ function loadDB(): DBStructure {
   return defaultDB;
 }
 
+const syncCache: Record<string, string> = {};
+
+function getDocCacheKey(collectionName: string, id: string): string {
+  return `${collectionName}:${id}`;
+}
+
+async function saveToFirestoreCached(collectionName: string, id: string, data: any, promises: Promise<any>[]) {
+  const cacheKey = getDocCacheKey(collectionName, id);
+  const dataStr = JSON.stringify(data);
+  
+  if (syncCache[cacheKey] === dataStr) {
+    return; // Ya sincronizado
+  }
+  
+  promises.push(
+    saveToFirestore(collectionName, id, data).then(() => {
+      syncCache[cacheKey] = dataStr;
+    })
+  );
+}
+
+function syncDeletions(collectionName: string, activeIds: Set<string>, promises: Promise<any>[]) {
+  const prefix = `${collectionName}:`;
+  for (const cacheKey of Object.keys(syncCache)) {
+    if (cacheKey.startsWith(prefix)) {
+      const id = cacheKey.substring(prefix.length);
+      if (!activeIds.has(id)) {
+        console.log(`🗑️ [Firestore Sync] Detectada eliminación de /${collectionName}/${id} localmente. Sincronizando eliminación...`);
+        promises.push(
+          deleteFromFirestore(collectionName, id).then(() => {
+            delete syncCache[cacheKey];
+          })
+        );
+      }
+    }
+  }
+}
+
 // Background collection sync to Firestore
 async function syncCollectionsToFirestore(data: DBStructure) {
   try {
+    const promises: Promise<any>[] = [];
+
     if (data.users) {
+      const activeIds = new Set<string>();
       for (const item of data.users) {
         if (item && item.id) {
-          await saveToFirestore("users", item.id, item);
+          activeIds.add(item.id);
+          await saveToFirestoreCached("users", item.id, item, promises);
         }
       }
+      syncDeletions("users", activeIds, promises);
     }
     if (data.reservations) {
+      const activeIds = new Set<string>();
       for (const item of data.reservations) {
         if (item && item.id) {
-          await saveToFirestore("reservations", item.id, item);
+          activeIds.add(item.id);
+          await saveToFirestoreCached("reservations", item.id, item, promises);
         }
       }
+      syncDeletions("reservations", activeIds, promises);
     }
     if (data.emails) {
+      const activeIds = new Set<string>();
       for (const item of data.emails) {
         if (item && item.id) {
-          await saveToFirestore("emails", item.id, item);
+          activeIds.add(item.id);
+          await saveToFirestoreCached("emails", item.id, item, promises);
         }
       }
+      syncDeletions("emails", activeIds, promises);
     }
     if (data.visitorPasses) {
+      const activeIds = new Set<string>();
       for (const item of data.visitorPasses) {
         if (item && item.id) {
-          await saveToFirestore("visitorPasses", item.id, item);
+          activeIds.add(item.id);
+          await saveToFirestoreCached("visitorPasses", item.id, item, promises);
         }
       }
+      syncDeletions("visitorPasses", activeIds, promises);
     }
     if (data.payments) {
+      const activeIds = new Set<string>();
       for (const item of data.payments) {
         if (item && item.id) {
-          await saveToFirestore("payments", item.id, item);
+          activeIds.add(item.id);
+          await saveToFirestoreCached("payments", item.id, item, promises);
         }
       }
+      syncDeletions("payments", activeIds, promises);
     }
     if (data.properties) {
+      const activeIds = new Set<string>();
       for (const item of data.properties) {
         if (item && item.id) {
-          await saveToFirestore("properties", item.id, item);
+          activeIds.add(item.id);
+          await saveToFirestoreCached("properties", item.id, item, promises);
         }
       }
+      syncDeletions("properties", activeIds, promises);
     }
     if (data.config) {
-      await saveToFirestore("config", "app_config", data.config);
+      await saveToFirestoreCached("config", "app_config", data.config, promises);
+    }
+
+    if (promises.length > 0) {
+      console.log(`⚡ [Firestore Sync] Sincronizando ${promises.length} cambios en paralelo...`);
+      await Promise.all(promises);
+      console.log(`✅ [Firestore Sync] Sincronización en paralelo de ${promises.length} cambios completada.`);
     }
   } catch (err) {
     console.error("Error in background Firestore sync:", err);
   }
 }
 
+let isBootSynced = false;
+
 function saveDB(data: DBStructure) {
   try {
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), "utf-8");
-    // Trigger asynchronous firestore sync in background
-    syncCollectionsToFirestore(data).catch((err) => {
-      console.warn("Background firestore sync failed:", err);
-    });
+    if (isBootSynced) {
+      // Trigger asynchronous firestore sync in background
+      syncCollectionsToFirestore(data).catch((err) => {
+        console.warn("Background firestore sync failed:", err);
+      });
+    } else {
+      console.log("ℹ️ [saveDB] Guardado local únicamente. Sincronización de arranque aún en curso.");
+    }
   } catch (e) {
     console.error("Error saving database file", e);
   }
@@ -194,16 +264,33 @@ if (!db.config) {
 async function syncFromFirestoreOnBoot() {
   console.log("🔄 Iniciando sincronización de arranque con Firestore...");
   try {
-    const fireUsers = await loadFromFirestore("users");
+    let retries = 5;
+    let fireUsers: any[] | null = null;
     
-    const isNewAdminMissing = !fireUsers || !fireUsers.some(u => 
+    while (retries > 0) {
+      fireUsers = await loadFromFirestore("users");
+      if (fireUsers !== null) {
+        break;
+      }
+      console.warn(`⚠️ Error al cargar usuarios de Firestore. Reintentando en 5 segundos... (${retries} reintentos restantes)`);
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+      retries--;
+    }
+
+    if (fireUsers === null) {
+      console.error("❌ No se pudo conectar con Firestore después de varios intentos. Se desactiva la sincronización de subida para proteger los datos locales.");
+      isBootSynced = false;
+      return;
+    }
+
+    const isNewAdminMissing = fireUsers.length === 0 || !fireUsers.some(u => 
       u.username === "diego7ceron@gmail.com" || 
       u.username === "TecnologiasInteractivasTI@gmail.com"
     );
 
     // If Firestore already has users, we do NOT reset anything. We load the clean state from Firestore.
-    if (fireUsers && fireUsers.length > 0) {
-      console.log("📈 Se encontraron datos en Firestore. Sincronizando a memoria local...");
+    if (fireUsers.length > 0) {
+      console.log(`📈 Se encontraron ${fireUsers.length} usuarios en Firestore. Sincronizando a memoria local...`);
       const fireReservations = await loadFromFirestore("reservations");
       const fireEmails = await loadFromFirestore("emails");
       const firePasses = await loadFromFirestore("visitorPasses");
@@ -212,30 +299,62 @@ async function syncFromFirestoreOnBoot() {
       const fireConfig = await loadFromFirestore("config");
 
       db.users = fireUsers;
-      if (fireReservations !== null && fireReservations !== undefined) {
+      for (const u of fireUsers) {
+        syncCache[getDocCacheKey("users", u.id)] = JSON.stringify(u);
+      }
+
+      if (fireReservations !== null) {
         db.reservations = fireReservations;
+        for (const r of fireReservations) {
+          syncCache[getDocCacheKey("reservations", r.id)] = JSON.stringify(r);
+        }
+        console.log(`📥 Sincronizadas ${fireReservations.length} reservaciones.`);
+      } else {
+        console.warn("⚠️ No se pudieron cargar las reservaciones de Firestore. Se mantienen las locales.");
       }
-      if (fireEmails !== null && fireEmails !== undefined) {
+
+      if (fireEmails !== null) {
         db.emails = fireEmails;
+        for (const em of fireEmails) {
+          syncCache[getDocCacheKey("emails", em.id)] = JSON.stringify(em);
+        }
       }
-      if (firePasses !== null && firePasses !== undefined) {
+
+      if (firePasses !== null) {
         db.visitorPasses = firePasses;
+        for (const p of firePasses) {
+          syncCache[getDocCacheKey("visitorPasses", p.id)] = JSON.stringify(p);
+        }
       }
-      if (firePayments !== null && firePayments !== undefined) {
+
+      if (firePayments !== null) {
         db.payments = firePayments;
+        for (const py of firePayments) {
+          syncCache[getDocCacheKey("payments", py.id)] = JSON.stringify(py);
+        }
+        console.log(`📥 Sincronizados ${firePayments.length} pagos.`);
+      } else {
+        console.warn("⚠️ No se pudieron cargar los pagos de Firestore. Se mantienen los locales.");
       }
 
-      if (fireProperties && fireProperties.length > 0) {
+      if (fireProperties !== null && fireProperties.length > 0) {
         db.properties = fireProperties;
-      } else if (!db.properties || db.properties.length === 0) {
+        for (const pr of fireProperties) {
+          syncCache[getDocCacheKey("properties", pr.id)] = JSON.stringify(pr);
+        }
+      } else if (fireProperties !== null) {
         db.properties = defaultDB.properties;
+        for (const pr of defaultDB.properties) {
+          syncCache[getDocCacheKey("properties", pr.id)] = JSON.stringify(pr);
+        }
       }
 
-      if (fireConfig && fireConfig.length > 0) {
+      if (fireConfig !== null && fireConfig.length > 0) {
         const appConfigDoc = fireConfig.find(c => c.id === "app_config");
         if (appConfigDoc) {
           const { id, ...cleanConfig } = appConfigDoc;
           db.config = cleanConfig;
+          syncCache[getDocCacheKey("config", "app_config")] = JSON.stringify(appConfigDoc);
         }
       }
 
@@ -264,17 +383,19 @@ async function syncFromFirestoreOnBoot() {
         if (!db.users.some(u => u.username === admin1.username)) {
           db.users.push(admin1);
           await saveToFirestore("users", admin1.id, admin1);
+          syncCache[getDocCacheKey("users", admin1.id)] = JSON.stringify(admin1);
         }
         if (!db.users.some(u => u.username === admin2.username)) {
           db.users.push(admin2);
           await saveToFirestore("users", admin2.id, admin2);
+          syncCache[getDocCacheKey("users", admin2.id)] = JSON.stringify(admin2);
         }
       }
 
       fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), "utf-8");
       console.log("✅ Base de datos local sincronizada correctamente con Firestore.");
     } else {
-      console.log("🌱 Firestore vacío. Inicializando estado limpio de inicio con administradores y propiedades...");
+      console.log("🌱 Firestore vacío (0 usuarios). Inicializando estado limpio de inicio con administradores y propiedades...");
       // Initialize with default admin accounts
       const defaultAdmins = [
         { 
@@ -309,16 +430,20 @@ async function syncFromFirestoreOnBoot() {
       // Save seeds to Firestore
       for (const adm of defaultAdmins) {
         await saveToFirestore("users", adm.id, adm);
+        syncCache[getDocCacheKey("users", adm.id)] = JSON.stringify(adm);
       }
       if (db.properties) {
         for (const prop of db.properties) {
           await saveToFirestore("properties", prop.id, prop);
+          syncCache[getDocCacheKey("properties", prop.id)] = JSON.stringify(prop);
         }
       }
       console.log("✅ Inicialización y siembra completadas.");
     }
+    isBootSynced = true;
   } catch (error) {
     console.warn("⚠️ Error en sincronización de arranque con Firestore:", error);
+    isBootSynced = true;
   }
 }
 

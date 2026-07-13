@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from "react";
+import { compressBase64Image } from "../utils/image-compress";
 import { 
   Home, 
   Plus, 
@@ -191,8 +192,9 @@ export default function PropertyManagement() {
 
     setPayProofName(file.name);
     const reader = new FileReader();
-    reader.onload = () => {
-      setPayProofUrl(reader.result as string);
+    reader.onload = async () => {
+      const compressed = await compressBase64Image(reader.result as string);
+      setPayProofUrl(compressed);
     };
     reader.readAsDataURL(file);
   };

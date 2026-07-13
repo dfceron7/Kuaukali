@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from "react";
 import { User, VigilancePayment, HousePaymentStatus } from "../types";
+import { compressBase64Image } from "../utils/image-compress";
 import { 
   CreditCard, 
   CheckCircle, 
@@ -223,8 +224,9 @@ export default function PaymentModule({ currentUser }: PaymentModuleProps) {
 
     setProofFileName(file.name);
     const reader = new FileReader();
-    reader.onload = () => {
-      setProofFileUrl(reader.result as string);
+    reader.onload = async () => {
+      const compressed = await compressBase64Image(reader.result as string);
+      setProofFileUrl(compressed);
     };
     reader.readAsDataURL(file);
   };
