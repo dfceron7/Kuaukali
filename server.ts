@@ -1550,19 +1550,46 @@ function getHousePaymentStatus(houseName: string) {
 
 // Get vigilance payment records
 app.get("/api/payments", (req, res) => {
-  const { userId, role } = req.query;
+  const { userId, role, email, username, house } = req.query;
   let payments = db.payments || [];
-  if (role === "resident" && userId) {
-    const user = db.users.find(u => u.id === userId);
+  
+  if (role === "resident") {
+    let user = userId ? db.users.find(u => u.id === userId) : null;
+    
+    // Fallback search strategies
+    if (!user && email) {
+      user = db.users.find(u => u.email && u.email.toLowerCase() === (email as string).trim().toLowerCase());
+    }
+    if (!user && username) {
+      user = db.users.find(u => u.username && u.username.toLowerCase() === (username as string).trim().toLowerCase());
+    }
+
     if (user) {
       const userHouseLower = user.house ? user.house.trim().toLowerCase() : "";
+      const userEmailLower = user.email ? user.email.trim().toLowerCase() : "";
+      const searchId = user.id;
+
       payments = payments.filter((p) => {
-        if (p.userId === userId) return true;
+        if (p.userId === searchId) return true;
+        if (userEmailLower && p.userEmail && p.userEmail.trim().toLowerCase() === userEmailLower) return true;
         if (userHouseLower && p.house && p.house.trim().toLowerCase() === userHouseLower) return true;
         return false;
       });
     } else {
-      payments = [];
+      // Direct field-based matching for maximum resilience when user object is completely detached
+      const cachedHouseLower = house ? (house as string).trim().toLowerCase() : "";
+      const cachedEmailLower = email ? (email as string).trim().toLowerCase() : "";
+      
+      if (cachedHouseLower || cachedEmailLower) {
+        payments = payments.filter((p) => {
+          if (cachedEmailLower && p.userEmail && p.userEmail.trim().toLowerCase() === cachedEmailLower) return true;
+          if (cachedHouseLower && p.house && p.house.trim().toLowerCase() === cachedHouseLower) return true;
+          if (userId && p.userId === userId) return true;
+          return false;
+        });
+      } else {
+        payments = [];
+      }
     }
   }
   res.json(payments);

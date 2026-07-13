@@ -109,8 +109,15 @@ export default function PaymentModule({ currentUser }: PaymentModuleProps) {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // 1. Fetch payments list
-      const resPayments = await fetch(`/api/payments?userId=${currentUser.id}&role=${currentUser.role}`);
+      // 1. Fetch payments list with all fallback parameters for database alignment
+      const queryParams = new URLSearchParams({
+        userId: currentUser.id || "",
+        role: currentUser.role || "",
+        email: currentUser.email || "",
+        username: currentUser.username || "",
+        house: currentUser.house || ""
+      });
+      const resPayments = await fetch(`/api/payments?${queryParams.toString()}`);
       if (resPayments.ok) {
         const data = await resPayments.json();
         // Sort descending
@@ -147,6 +154,13 @@ export default function PaymentModule({ currentUser }: PaymentModuleProps) {
 
   useEffect(() => {
     fetchData();
+
+    // Auto-refresh payments and validation queue every 5 seconds for immediate real-time response
+    const interval = setInterval(() => {
+      fetchData();
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, [currentUser]);
 
   // Handle month selection
