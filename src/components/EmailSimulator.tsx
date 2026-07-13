@@ -80,11 +80,19 @@ export default function EmailSimulator({ currentUser }: EmailSimulatorProps) {
         `/api/emails?email=${encodeURIComponent(currentUser.email)}&role=${currentUser.role}`
       );
       const data = await res.json();
-      setEmails(data);
-      if (data.length > 0) {
+      
+      // Sort descending: most recent first (using sentAt or timestamp)
+      const sorted = [...data].sort((a: any, b: any) => {
+        const dateA = new Date(a.sentAt || a.timestamp || 0).getTime();
+        const dateB = new Date(b.sentAt || b.timestamp || 0).getTime();
+        return dateB - dateA;
+      });
+      
+      setEmails(sorted);
+      if (sorted.length > 0) {
         const isDesktop = typeof window !== "undefined" && window.innerWidth >= 768;
-        if (isDesktop && (!selectedEmail || !data.some((m: EmailNotification) => m.id === selectedEmail.id))) {
-          setSelectedEmail(data[0]);
+        if (isDesktop && (!selectedEmail || !sorted.some((m: EmailNotification) => m.id === selectedEmail.id))) {
+          setSelectedEmail(sorted[0]);
         }
       } else {
         setSelectedEmail(null);
@@ -290,7 +298,7 @@ export default function EmailSimulator({ currentUser }: EmailSimulatorProps) {
             </div>
           ) : (
             emails.map((m) => {
-              const dateObj = new Date(m.sentAt);
+              const dateObj = new Date(m.sentAt || (m as any).timestamp || 0);
               const isSelected = !isComposing && selectedEmail?.id === m.id;
               const isOfficialComm = m.subject.includes("[COMUNICADO]");
 
@@ -618,7 +626,7 @@ export default function EmailSimulator({ currentUser }: EmailSimulatorProps) {
                     <span className="text-slate-400">Para:</span> <strong className="text-slate-800">{selectedEmail.toEmail}</strong>
                   </p>
                   <p>
-                    <span className="text-slate-400">Fecha:</span> {new Date(selectedEmail.sentAt).toLocaleString("es-ES")}
+                    <span className="text-slate-400">Fecha:</span> {new Date(selectedEmail.sentAt || (selectedEmail as any).timestamp || 0).toLocaleString("es-ES")}
                   </p>
                 </div>
               </div>

@@ -778,10 +778,10 @@ app.post("/api/admin/properties/:id/pay", (req, res) => {
   }
   db.emails.push({
     id: "mail_" + Math.random().toString(36).substring(2, 9),
-    to: userEmail,
+    toEmail: userEmail,
     subject,
     bodyHtml,
-    timestamp: new Date().toISOString(),
+    sentAt: new Date().toISOString(),
     status: "sent"
   });
 
@@ -1124,7 +1124,15 @@ app.get("/api/emails", (req, res) => {
       );
     }
   }
-  res.json(emails);
+
+  // Sort descending: most recent first (using sentAt or timestamp)
+  const sortedEmails = [...emails].sort((a: any, b: any) => {
+    const dateA = new Date(a.sentAt || a.timestamp || 0).getTime();
+    const dateB = new Date(b.sentAt || b.timestamp || 0).getTime();
+    return dateB - dateA;
+  });
+
+  res.json(sortedEmails);
 });
 
 // Send a custom communication (admin, sysadmin, directiva)
@@ -1547,7 +1555,12 @@ app.get("/api/payments", (req, res) => {
   if (role === "resident" && userId) {
     const user = db.users.find(u => u.id === userId);
     if (user) {
-      payments = payments.filter((p) => p.house === user.house);
+      const userHouseLower = user.house ? user.house.trim().toLowerCase() : "";
+      payments = payments.filter((p) => {
+        if (p.userId === userId) return true;
+        if (userHouseLower && p.house && p.house.trim().toLowerCase() === userHouseLower) return true;
+        return false;
+      });
     } else {
       payments = [];
     }
