@@ -1564,33 +1564,48 @@ app.get("/api/payments", (req, res) => {
       user = db.users.find(u => u.username && u.username.toLowerCase() === (username as string).trim().toLowerCase());
     }
 
-    if (user) {
-      const userHouseLower = user.house ? user.house.trim().toLowerCase() : "";
-      const userEmailLower = user.email ? user.email.trim().toLowerCase() : "";
-      const searchId = user.id;
+    const possibleIds = new Set<string>();
+    const possibleEmails = new Set<string>();
+    const possibleHouses = new Set<string>();
 
-      payments = payments.filter((p) => {
-        if (p.userId === searchId) return true;
-        if (userEmailLower && p.userEmail && p.userEmail.trim().toLowerCase() === userEmailLower) return true;
-        if (userHouseLower && p.house && p.house.trim().toLowerCase() === userHouseLower) return true;
-        return false;
-      });
-    } else {
-      // Direct field-based matching for maximum resilience when user object is completely detached
-      const cachedHouseLower = house ? (house as string).trim().toLowerCase() : "";
-      const cachedEmailLower = email ? (email as string).trim().toLowerCase() : "";
-      
-      if (cachedHouseLower || cachedEmailLower) {
-        payments = payments.filter((p) => {
-          if (cachedEmailLower && p.userEmail && p.userEmail.trim().toLowerCase() === cachedEmailLower) return true;
-          if (cachedHouseLower && p.house && p.house.trim().toLowerCase() === cachedHouseLower) return true;
-          if (userId && p.userId === userId) return true;
-          return false;
-        });
-      } else {
-        payments = [];
-      }
+    // From Query Params (always trust what the authenticated client sends)
+    if (userId) possibleIds.add((userId as string).trim().toLowerCase());
+    if (email) {
+      const e = (email as string).trim().toLowerCase();
+      possibleEmails.add(e);
     }
+    if (username) {
+      const u = (username as string).trim().toLowerCase();
+      possibleEmails.add(u);
+    }
+    if (house) {
+      possibleHouses.add((house as string).trim().toLowerCase());
+    }
+
+    // From User Object if found in the DB (supplemental)
+    if (user) {
+      if (user.id) possibleIds.add(user.id.trim().toLowerCase());
+      if (user.email) possibleEmails.add(user.email.trim().toLowerCase());
+      if (user.username) possibleEmails.add(user.username.trim().toLowerCase());
+      if (user.house) possibleHouses.add(user.house.trim().toLowerCase());
+    }
+
+    payments = payments.filter((p) => {
+      const pUserId = p.userId ? p.userId.trim().toLowerCase() : "";
+      const pUserEmail = p.userEmail ? p.userEmail.trim().toLowerCase() : "";
+      const pUserName = p.userName ? p.userName.trim().toLowerCase() : "";
+      const pHouse = p.house ? p.house.trim().toLowerCase() : "";
+
+      // Match ID
+      if (pUserId && possibleIds.has(pUserId)) return true;
+      // Match Email/Username
+      if (pUserEmail && possibleEmails.has(pUserEmail)) return true;
+      if (pUserName && possibleEmails.has(pUserName)) return true;
+      // Match House
+      if (pHouse && possibleHouses.has(pHouse)) return true;
+      
+      return false;
+    });
   }
   res.json(payments);
 });

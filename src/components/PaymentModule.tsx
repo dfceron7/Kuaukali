@@ -120,8 +120,12 @@ export default function PaymentModule({ currentUser }: PaymentModuleProps) {
       const resPayments = await fetch(`/api/payments?${queryParams.toString()}`);
       if (resPayments.ok) {
         const data = await resPayments.json();
-        // Sort descending
-        const sorted = data.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        // Sort descending safely (avoid NaN issues with unparseable or missing dates)
+        const sorted = data.sort((a: any, b: any) => {
+          const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return isNaN(timeB) || isNaN(timeA) ? 0 : timeB - timeA;
+        });
         setPayments(sorted);
       }
 
