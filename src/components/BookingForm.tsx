@@ -77,6 +77,16 @@ export default function BookingForm({ currentUser, reservations, onReservationCr
       setErrorMsg("Por favor adjunte únicamente un archivo legible de imagen (JPG, PNG) o PDF.");
       return;
     }
+
+    if (file.type === "application/pdf" && file.size > 350 * 1024) {
+      setErrorMsg("El archivo PDF es demasiado grande (máximo 350 KB). Por favor, suba un PDF digital comprimido, o tome una foto/captura de pantalla para subirla como imagen.");
+      return;
+    }
+
+    if (file.type.startsWith("image/") && file.size > 10 * 1024 * 1024) {
+      setErrorMsg("La imagen supera el límite de 10 MB. Por favor, suba una imagen de menor tamaño.");
+      return;
+    }
     
     setFileObject(file);
     setErrorMsg(null);

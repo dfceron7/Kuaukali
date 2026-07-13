@@ -190,6 +190,17 @@ export default function PropertyManagement() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (!file.type.startsWith("image/")) {
+      setError("Por favor adjunte únicamente un archivo de imagen (JPG, PNG).");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setError("La imagen supera el límite de 10 MB. Por favor, suba una imagen de menor tamaño.");
+      return;
+    }
+
+    setError(null);
     setPayProofName(file.name);
     const reader = new FileReader();
     reader.onload = async () => {
