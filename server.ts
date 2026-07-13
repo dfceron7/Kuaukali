@@ -837,6 +837,10 @@ app.post("/api/admin/properties/:id/pay", (req, res) => {
     return res.status(400).json({ error: "El número de comprobante es requerido." });
   }
 
+  if (proofFileUrl && proofFileUrl.length > 800000) {
+    return res.status(400).json({ error: "El archivo de comprobante adjunto es demasiado grande (máximo ~600KB comprimido). Por favor tome una captura de pantalla o reduzca el tamaño del archivo antes de subirlo." });
+  }
+
   // Find a user associated with this property if any
   const associatedUser = (db.users || []).find(u => u.house && u.house.toLowerCase() === property.name.toLowerCase());
   const userId = associatedUser ? associatedUser.id : "admin_direct";
@@ -1021,6 +1025,10 @@ app.post("/api/reservations", (req, res) => {
 
   if (!userId || !date || !startTime || !endTime || !guestsCount || !proofFileUrl) {
     return res.status(400).json({ error: "Faltan campos obligatorios en el formulario de reserva" });
+  }
+
+  if (proofFileUrl && proofFileUrl.length > 800000) {
+    return res.status(400).json({ error: "El archivo de comprobante adjunto es demasiado grande (máximo ~600KB comprimido). Por favor tome una captura de pantalla o reduzca el tamaño del archivo antes de subirlo." });
   }
 
   const user = db.users.find((u) => u.id === userId);
@@ -1828,6 +1836,10 @@ app.post("/api/payments", (req, res) => {
 
   if (!userId || !months || months.length === 0 || !amount || !transactionReference) {
     return res.status(400).json({ error: "Faltan campos requeridos para registrar el pago." });
+  }
+
+  if (proofFileUrl && proofFileUrl.length > 800000) {
+    return res.status(400).json({ error: "El archivo de comprobante adjunto es demasiado grande (máximo ~600KB comprimido). Por favor tome una captura de pantalla o reduzca el tamaño del archivo antes de subirlo." });
   }
 
   const correlativeNum = (db.payments || []).length + 1;

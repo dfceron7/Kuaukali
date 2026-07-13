@@ -5,9 +5,9 @@
  */
 export function compressBase64Image(
   base64Str: string,
-  maxWidth = 700,
-  maxHeight = 700,
-  quality = 0.5
+  maxWidth = 600,
+  maxHeight = 600,
+  quality = 0.4
 ): Promise<string> {
   return new Promise((resolve) => {
     // If it's not an image (e.g., PDF) or is very small (less than 50KB), don't touch it
