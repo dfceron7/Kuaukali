@@ -1361,7 +1361,7 @@ export default function App() {
       {/* Footer footer information area */}
       <footer className="bg-white border-t border-slate-200 py-6 mt-12">
         <div className="max-w-7xl mx-auto px-4 text-center text-xs text-slate-400 font-mono">
-          <p>© 2026 Residencial KuauKali, todos los derechos reservados.</p>
+          <p>© {new Date().getFullYear()} Residencial KuauKali, todos los derechos reservados.</p>
           <p className="mt-1">
             Diseñado bajo las normativas de junta directiva y acuerdos con residentes.
           </p>

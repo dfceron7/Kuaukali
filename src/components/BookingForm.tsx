@@ -33,6 +33,7 @@ export default function BookingForm({ currentUser, reservations, onReservationCr
   const [solvencyLoading, setSolvencyLoading] = useState<boolean>(true);
   const [isEnMora, setIsEnMora] = useState<boolean>(false);
   const [pendingMonthsCount, setPendingMonthsCount] = useState<number>(0);
+  const [maxReservationHours, setMaxReservationHours] = useState<number>(5);
 
   React.useEffect(() => {
     const checkSolvency = async () => {
@@ -57,6 +58,23 @@ export default function BookingForm({ currentUser, reservations, onReservationCr
     };
     checkSolvency();
   }, [currentUser]);
+
+  React.useEffect(() => {
+    const fetchAppConfig = async () => {
+      try {
+        const res = await fetch("/api/config");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.maxReservationHours !== undefined) {
+            setMaxReservationHours(data.maxReservationHours);
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching app config:", err);
+      }
+    };
+    fetchAppConfig();
+  }, []);
 
   // Time options (07:00 to 22:00 in steps of 30 mins)
   const timeOptions: string[] = [];
@@ -140,10 +158,10 @@ export default function BookingForm({ currentUser, reservations, onReservationCr
       return;
     }
 
-    // Validation 2: Max 5 hours
+    // Validation 2: Max reservation hours
     const durationMins = endMins - startMins;
-    if (durationMins > 5 * 60) {
-      setErrorMsg("El límite máximo por reserva de Casa Club es de 5 horas. Por favor reajuste el intervalo.");
+    if (durationMins > maxReservationHours * 60) {
+      setErrorMsg(`El límite máximo por reserva de Casa Club es de ${maxReservationHours} horas. Por favor reajuste el intervalo.`);
       return;
     }
 

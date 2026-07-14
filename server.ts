@@ -239,6 +239,7 @@ if (!db.config) {
     moraStartMonth: "Enero 2026",
     monthlyFee: 100,
     feeHistory: [],
+    maxReservationHours: 5,
     reservationNorms: [
       "Duración máxima permitida: 5 horas por reserva.",
       "Separación mínima entre eventos: 1 hora limpia de por medio.",
@@ -248,6 +249,10 @@ if (!db.config) {
   saveDB(db);
 } else {
   let changed = false;
+  if (db.config.maxReservationHours === undefined) {
+    db.config.maxReservationHours = 5;
+    changed = true;
+  }
   if (db.config.monthlyFee === 50) {
     db.config.monthlyFee = 100;
     changed = true;
@@ -1044,10 +1049,11 @@ app.post("/api/reservations", (req, res) => {
     return res.status(400).json({ error: "La hora de inicio debe ser anterior a la hora de finalización" });
   }
 
-  // rule: max 5 hours
+  // rule: max reservation hours
+  const maxHours = db.config?.maxReservationHours ?? 5;
   const durationMinutes = endMins - startMins;
-  if (durationMinutes > 5 * 60) {
-    return res.status(400).json({ error: "El máximo de horas permitidas es de 5 horas por reserva" });
+  if (durationMinutes > maxHours * 60) {
+    return res.status(400).json({ error: `El máximo de horas permitidas es de ${maxHours} horas por reserva` });
   }
 
   // Check overlapping or consecutive rules with existing bookings on the same day (except rejected and cancelled)
@@ -2119,6 +2125,7 @@ app.get("/api/config", (req, res) => {
     moraStartMonth: "Enero 2026",
     monthlyFee: 100,
     feeHistory: [],
+    maxReservationHours: 5,
     reservationNorms: [
       "Duración máxima permitida: 5 horas por reserva.",
       "Separación mínima entre eventos: 1 hora limpia de por medio.",
@@ -2129,7 +2136,7 @@ app.get("/api/config", (req, res) => {
 });
 
 app.post("/api/config", (req, res) => {
-  const { moraThresholdMonths, moraStartMonth, reservationNorms, monthlyFee, enabledFeatures } = req.body;
+  const { moraThresholdMonths, moraStartMonth, reservationNorms, monthlyFee, enabledFeatures, maxReservationHours } = req.body;
   
   if (!db.config) {
     db.config = {
@@ -2137,6 +2144,7 @@ app.post("/api/config", (req, res) => {
       moraStartMonth: "Enero 2026",
       monthlyFee: 100,
       feeHistory: [],
+      maxReservationHours: 5,
       reservationNorms: [
         "Duración máxima permitida: 5 horas por reserva.",
         "Separación mínima entre eventos: 1 hora limpia de por medio.",
@@ -2147,6 +2155,10 @@ app.post("/api/config", (req, res) => {
   
   if (enabledFeatures !== undefined) {
     db.config.enabledFeatures = enabledFeatures;
+  }
+  
+  if (maxReservationHours !== undefined) {
+    db.config.maxReservationHours = Number(maxReservationHours);
   }
   
   if (moraThresholdMonths !== undefined) {

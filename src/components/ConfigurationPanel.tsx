@@ -31,6 +31,7 @@ interface AppConfig {
   monthlyFee?: number;
   feeHistory?: any[];
   enabledFeatures?: Record<string, boolean>;
+  maxReservationHours?: number;
 }
 
 interface PaymentStatusReport {
@@ -44,7 +45,7 @@ interface PaymentStatusReport {
 export default function ConfigurationPanel({ currentUser }: ConfigurationPanelProps) {
   // Config States
   const [moraThreshold, setMoraThreshold] = useState<number>(3);
-  const [moraStartMonth, setMoraStartMonth] = useState<string>("Enero 2026");
+  const [moraStartMonth, setMoraStartMonth] = useState<string>(`Enero ${new Date().getFullYear()}`);
   const [norms, setNorms] = useState<string[]>([]);
   const [newNorm, setNewNorm] = useState<string>("");
   const [monthlyFee, setMonthlyFee] = useState<number>(100);
@@ -52,6 +53,9 @@ export default function ConfigurationPanel({ currentUser }: ConfigurationPanelPr
   const [loadingConfig, setLoadingConfig] = useState<boolean>(true);
   const [saveStatus, setSaveStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [resettingDb, setResettingDb] = useState<boolean>(false);
+  const [maxReservationHours, setMaxReservationHours] = useState<number>(5);
+  const [saveHoursStatus, setSaveHoursStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [savingHours, setSavingHours] = useState<boolean>(false);
 
   const [enabledFeatures, setEnabledFeatures] = useState<Record<string, boolean>>({
     calendar: true,
@@ -70,7 +74,8 @@ export default function ConfigurationPanel({ currentUser }: ConfigurationPanelPr
 
   // Dynamic current date loading
   const now = new Date();
-  const currentYearStr = String(now.getFullYear());
+  const currentYear = now.getFullYear();
+  const currentYearStr = String(currentYear);
   const monthNames = [
     "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
     "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
@@ -85,18 +90,17 @@ export default function ConfigurationPanel({ currentUser }: ConfigurationPanelPr
   const [rawPayments, setRawPayments] = useState<any[]>([]);
   const [loadingReport, setLoadingReport] = useState<boolean>(true);
 
-  const monthsList = [
-    // 2026
-    "Enero 2026", "Febrero 2026", "Marzo 2026", "Abril 2026", "Mayo 2026", "Junio 2026", "Julio 2026", "Agosto 2026", "Septiembre 2026", "Octubre 2026", "Noviembre 2026", "Diciembre 2026",
-    // 2027
-    "Enero 2027", "Febrero 2027", "Marzo 2027", "Abril 2027", "Mayo 2027", "Junio 2027", "Julio 2027", "Agosto 2027", "Septiembre 2027", "Octubre 2027", "Noviembre 2027", "Diciembre 2027",
-    // 2028
-    "Enero 2028", "Febrero 2028", "Marzo 2028", "Abril 2028", "Mayo 2028", "Junio 2028", "Julio 2028", "Agosto 2028", "Septiembre 2028", "Octubre 2028", "Noviembre 2028", "Diciembre 2028",
-    // 2029
-    "Enero 2029", "Febrero 2029", "Marzo 2029", "Abril 2029", "Mayo 2029", "Junio 2029", "Julio 2029", "Agosto 2029", "Septiembre 2029", "Octubre 2029", "Noviembre 2029", "Diciembre 2029",
-    // 2030
-    "Enero 2030", "Febrero 2030", "Marzo 2030", "Abril 2030", "Mayo 2030", "Junio 2030", "Julio 2030", "Agosto 2030", "Septiembre 2030", "Octubre 2030", "Noviembre 2030", "Diciembre 2030"
-  ];
+  const monthsList = React.useMemo(() => {
+    const list: string[] = [];
+    const minYear = 2026;
+    const maxYear = Math.max(2026, currentYear) + 4;
+    for (let yr = minYear; yr <= maxYear; yr++) {
+      for (const m of monthNames) {
+        list.push(`${m} ${yr}`);
+      }
+    }
+    return list;
+  }, [currentYear]);
 
   // Fetch Config
   const fetchConfig = async () => {
@@ -105,9 +109,10 @@ export default function ConfigurationPanel({ currentUser }: ConfigurationPanelPr
       if (res.ok) {
         const data: AppConfig = await res.json();
         setMoraThreshold(data.moraThresholdMonths ?? 1);
-        setMoraStartMonth(data.moraStartMonth ?? "Enero 2026");
+        setMoraStartMonth(data.moraStartMonth ?? `Enero ${currentYear}`);
         setNorms(data.reservationNorms ?? []);
         setMonthlyFee(data.monthlyFee ?? 50);
+        setMaxReservationHours(data.maxReservationHours ?? 5);
         setFeeHistory(data.feeHistory ?? []);
         if (data.enabledFeatures) {
           setEnabledFeatures({
@@ -209,6 +214,32 @@ export default function ConfigurationPanel({ currentUser }: ConfigurationPanelPr
       setSaveFeaturesStatus({ type: "error", message: "Error de conexión al intentar guardar la configuración del menú." });
     } finally {
       setSavingFeatures(false);
+    }
+  };
+
+  // Save max reservation hours
+  const handleSaveHoursConfig = async () => {
+    setSaveHoursStatus(null);
+    setSavingHours(true);
+    try {
+      const res = await fetch("/api/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          maxReservationHours: Number(maxReservationHours)
+        })
+      });
+      if (res.ok) {
+        setSaveHoursStatus({ type: "success", message: "Configuración de horas guardada exitosamente." });
+        await fetchConfig();
+        setTimeout(() => setSaveHoursStatus(null), 4000);
+      } else {
+        setSaveHoursStatus({ type: "error", message: "Error al guardar la configuración de horas." });
+      }
+    } catch (e) {
+      setSaveHoursStatus({ type: "error", message: "Error de conexión." });
+    } finally {
+      setSavingHours(false);
     }
   };
 
@@ -568,6 +599,40 @@ export default function ConfigurationPanel({ currentUser }: ConfigurationPanelPr
                 <div className="text-xs text-slate-400 text-center py-4">Cargando normativas...</div>
               ) : (
                 <>
+                  {/* Dynamic Maximum Reservation Hours Configuration */}
+                  <div className="bg-purple-50/60 border border-purple-100 rounded-xl p-4 space-y-3">
+                    <label className="block font-bold text-slate-700">
+                      Horas Máximas Permitidas por Reserva:
+                    </label>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="number"
+                        min="1"
+                        max="24"
+                        value={maxReservationHours}
+                        onChange={(e) => setMaxReservationHours(Math.max(1, Math.min(24, parseInt(e.target.value) || 1)))}
+                        className="w-20 pl-3 pr-2 py-2 rounded-lg border border-slate-300 bg-white text-slate-900 font-bold focus:outline-hidden text-center"
+                      />
+                      <span className="text-slate-500 font-medium">horas</span>
+                      
+                      <button
+                        type="button"
+                        onClick={handleSaveHoursConfig}
+                        disabled={savingHours}
+                        className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-1.5 px-3 rounded-lg text-xs transition-all shrink-0 cursor-pointer disabled:opacity-50"
+                      >
+                        {savingHours ? "Guardando..." : "Guardar Límite"}
+                      </button>
+                    </div>
+                    {saveHoursStatus && (
+                      <div className={`p-1.5 rounded text-[10px] font-medium leading-relaxed mt-1 ${
+                        saveHoursStatus.type === "success" ? "bg-emerald-50 text-emerald-800" : "bg-rose-50 text-rose-800"
+                      }`}>
+                        {saveHoursStatus.message}
+                      </div>
+                    )}
+                  </div>
+
                   <ul className="space-y-3 bg-slate-50 p-3 rounded-xl max-h-60 overflow-y-auto border border-slate-150">
                     {norms.length === 0 ? (
                       <li className="text-slate-400 text-center py-3 italic">No hay normativas configuradas.</li>
@@ -753,11 +818,10 @@ export default function ConfigurationPanel({ currentUser }: ConfigurationPanelPr
                     }}
                     className="pl-2.5 pr-8 py-1.5 rounded-lg border border-slate-300 bg-slate-50 text-xs font-bold text-slate-800 focus:bg-white focus:outline-hidden"
                   >
-                    <option value="2026">Año 2026</option>
-                    <option value="2027">Año 2027</option>
-                    <option value="2028">Año 2028</option>
-                    <option value="2029">Año 2029</option>
-                    <option value="2030">Año 2030</option>
+                    {Array.from({ length: 5 }, (_, i) => {
+                      const yr = String(currentYear + i);
+                      return <option key={yr} value={yr}>Año {yr}</option>;
+                    })}
                   </select>
                 </div>
                 <div>

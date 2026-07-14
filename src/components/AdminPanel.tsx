@@ -643,11 +643,10 @@ export default function AdminPanel({ reservations, onActionTriggered }: AdminPan
                     }}
                     className="w-full pl-3 pr-8 py-2 text-xs font-bold rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-hidden focus:border-emerald-500 cursor-pointer"
                   >
-                    <option value="2026">2026</option>
-                    <option value="2027">2027</option>
-                    <option value="2028">2028</option>
-                    <option value="2029">2029</option>
-                    <option value="2030">2030</option>
+                    {Array.from({ length: 5 }, (_, i) => {
+                      const yr = String(new Date().getFullYear() + i);
+                      return <option key={yr} value={yr}>{yr}</option>;
+                    })}
                   </select>
                 </div>
               </div>

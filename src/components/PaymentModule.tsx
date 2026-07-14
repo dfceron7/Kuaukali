@@ -32,18 +32,21 @@ interface PaymentModuleProps {
   currentUser: User;
 }
 
-const ALL_MONTHS_2026 = [
-  // 2026
-  "Enero 2026", "Febrero 2026", "Marzo 2026", "Abril 2026", "Mayo 2026", "Junio 2026", "Julio 2026", "Agosto 2026", "Septiembre 2026", "Octubre 2026", "Noviembre 2026", "Diciembre 2026",
-  // 2027
-  "Enero 2027", "Febrero 2027", "Marzo 2027", "Abril 2027", "Mayo 2027", "Junio 2027", "Julio 2027", "Agosto 2027", "Septiembre 2027", "Octubre 2027", "Noviembre 2027", "Diciembre 2027",
-  // 2028
-  "Enero 2028", "Febrero 2028", "Marzo 2028", "Abril 2028", "Mayo 2028", "Junio 2028", "Julio 2028", "Agosto 2028", "Septiembre 2028", "Octubre 2028", "Noviembre 2028", "Diciembre 2028",
-  // 2029
-  "Enero 2029", "Febrero 2029", "Marzo 2029", "Abril 2029", "Mayo 2029", "Junio 2029", "Julio 2029", "Agosto 2029", "Septiembre 2029", "Octubre 2029", "Noviembre 2029", "Diciembre 2029",
-  // 2030
-  "Enero 2030", "Febrero 2030", "Marzo 2030", "Abril 2030", "Mayo 2030", "Junio 2030", "Julio 2030", "Agosto 2030", "Septiembre 2030", "Octubre 2030", "Noviembre 2030", "Diciembre 2030"
-];
+const ALL_MONTHS_2026 = (() => {
+  const monthNames = [
+    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+  ];
+  const list: string[] = [];
+  const minYear = 2026;
+  const maxYear = Math.max(2026, new Date().getFullYear()) + 4;
+  for (let yr = minYear; yr <= maxYear; yr++) {
+    for (const m of monthNames) {
+      list.push(`${m} ${yr}`);
+    }
+  }
+  return list;
+})();
 
 const MONTHLY_FEE = 50; // $50 USD per month
 
@@ -57,7 +60,7 @@ export default function PaymentModule({ currentUser }: PaymentModuleProps) {
 
   // Forms and state
   const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
-  const [selectedYear, setSelectedYear] = useState<string>("2026");
+  const [selectedYear, setSelectedYear] = useState<string>(String(new Date().getFullYear()));
   const [transactionReference, setTransactionReference] = useState<string>("");
   const [proofFileName, setProofFileName] = useState<string>("");
   const [proofFileUrl, setProofFileUrl] = useState<string>("");
@@ -468,11 +471,10 @@ export default function PaymentModule({ currentUser }: PaymentModuleProps) {
                         onChange={(e) => setSelectedYear(e.target.value)}
                         className="text-xs bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-lg py-1 px-2.5 font-bold text-slate-700 focus:outline-hidden focus:border-teal-500 cursor-pointer transition-all"
                       >
-                        <option value="2026">2026</option>
-                        <option value="2027">2027</option>
-                        <option value="2028">2028</option>
-                        <option value="2029">2029</option>
-                        <option value="2030">2030</option>
+                        {Array.from({ length: 5 }, (_, i) => {
+                          const yr = String(new Date().getFullYear() + i);
+                          return <option key={yr} value={yr}>{yr}</option>;
+                        })}
                       </select>
                     </div>
                   </div>

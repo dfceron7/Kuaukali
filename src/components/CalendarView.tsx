@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Reservation } from "../types";
 import { Calendar, ChevronLeft, ChevronRight, Clock, MapPin, Users, HelpCircle, CheckCircle, Hourglass, ShieldAlert } from "lucide-react";
 
@@ -16,6 +16,24 @@ export default function CalendarView({ reservations }: CalendarViewProps) {
   const [selectedDateStr, setSelectedDateStr] = useState<string>(
     new Date().toISOString().split("T")[0]
   );
+  const [maxReservationHours, setMaxReservationHours] = useState<number>(5);
+
+  useEffect(() => {
+    const fetchAppConfig = async () => {
+      try {
+        const res = await fetch("/api/config");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.maxReservationHours !== undefined) {
+            setMaxReservationHours(data.maxReservationHours);
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching app config:", err);
+      }
+    };
+    fetchAppConfig();
+  }, []);
 
   // Helper calculation for calendar days
   const year = currentDate.getFullYear();
@@ -279,7 +297,7 @@ export default function CalendarView({ reservations }: CalendarViewProps) {
             Normativa de Reservas
           </h4>
           <ul className="text-[11px] text-slate-300 space-y-2 list-disc pl-4">
-            <li>Duración máxima permitida: <strong>5 horas</strong> por reserva.</li>
+            <li>Duración máxima permitida: <strong>{maxReservationHours} horas</strong> por reserva.</li>
             <li>Separación mínima entre eventos: <strong>1 hora</strong> limpia de por medio. </li>
             <li>Se requiere comprobante de transferencia bancaria visible para estudio administrativo.</li>
           </ul>
