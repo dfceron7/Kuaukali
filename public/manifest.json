@@ -1,6 +1,6 @@
 {
-  "name": "Portal Residencial - Control de Acceso",
-  "short_name": "Residencial",
+  "name": "Portal Kuaukali - Control de Acceso",
+  "short_name": "Kuaukali",
   "description": "Portal de gestión de reservas, pases de visita y control de acceso residencial en tiempo real.",
   "start_url": "/",
   "display": "standalone",
