@@ -2117,6 +2117,102 @@ app.post("/api/admin/reset", async (req, res) => {
   }
 });
 
+// Download Complete Backup
+app.get("/api/admin/backup", (req, res) => {
+  try {
+    const database = loadDB();
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Content-Disposition", "attachment; filename=respaldo_residencial_kuaukali.json");
+    res.json(database);
+  } catch (err: any) {
+    console.error("Error al descargar respaldo:", err);
+    res.status(500).json({ error: "Fallo al generar el archivo de respaldo: " + err.message });
+  }
+});
+
+// Restore Database from Backup JSON
+app.post("/api/admin/restore", async (req, res) => {
+  try {
+    const backupData = req.body;
+    
+    if (!backupData || typeof backupData !== "object") {
+      return res.status(400).json({ error: "Datos de respaldo no válidos" });
+    }
+    
+    // Simple schema validation
+    if (!backupData.users || !Array.isArray(backupData.users)) {
+      return res.status(400).json({ error: "El respaldo debe contener la lista de usuarios ('users')" });
+    }
+    
+    console.log("📥 [SISTEMA] Iniciando restauración de base de datos desde respaldo...");
+    
+    // Clear old collections from Firestore
+    const collectionsToClear = ["users", "reservations", "emails", "visitorPasses", "payments", "properties"];
+    for (const coll of collectionsToClear) {
+      try {
+        const items = await loadFromFirestore(coll) || [];
+        for (const item of items) {
+          if (item && item.id) {
+            await deleteFromFirestore(coll, item.id);
+          }
+        }
+      } catch (e) {
+        console.warn(`Error clearing collection ${coll} during restore:`, e);
+      }
+    }
+    
+    // Assign to in-memory db
+    db = {
+      users: backupData.users || [],
+      reservations: backupData.reservations || [],
+      emails: backupData.emails || [],
+      visitorPasses: backupData.visitorPasses || [],
+      payments: backupData.payments || [],
+      properties: backupData.properties || [],
+      config: backupData.config || {}
+    };
+    
+    // Save locally
+    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), "utf-8");
+    
+    // Sync all backup items to Firestore
+    const promises: Promise<any>[] = [];
+    const saveCollection = async (collectionName: string, items: any[]) => {
+      for (const item of items) {
+        if (item && item.id) {
+          promises.push(saveToFirestore(collectionName, item.id, item));
+        }
+      }
+    };
+    
+    await saveCollection("users", db.users);
+    await saveCollection("reservations", db.reservations);
+    await saveCollection("emails", db.emails);
+    await saveCollection("visitorPasses", db.visitorPasses || []);
+    await saveCollection("payments", db.payments || []);
+    await saveCollection("properties", db.properties || []);
+    
+    if (db.config) {
+      promises.push(saveToFirestore("config", "app_config", db.config));
+    }
+    
+    if (promises.length > 0) {
+      await Promise.all(promises);
+    }
+    
+    // Clear sync cache to avoid stale hits
+    for (const key of Object.keys(syncCache)) {
+      delete syncCache[key];
+    }
+    
+    console.log("✅ Restauración de respaldo completada exitosamente.");
+    res.json({ success: true, message: "Base de datos restaurada correctamente desde el respaldo." });
+  } catch (err: any) {
+    console.error("Error al restaurar respaldo:", err);
+    res.status(500).json({ error: "Fallo al restaurar el respaldo de la base de datos: " + err.message });
+  }
+});
+
 
 // Configurations API
 app.get("/api/config", (req, res) => {

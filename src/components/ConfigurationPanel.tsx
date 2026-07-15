@@ -17,7 +17,10 @@ import {
   TrendingUp, 
   CheckCircle, 
   HelpCircle,
-  Building
+  Building,
+  Download,
+  Upload,
+  Database
 } from "lucide-react";
 
 interface ConfigurationPanelProps {
@@ -56,6 +59,8 @@ export default function ConfigurationPanel({ currentUser }: ConfigurationPanelPr
   const [maxReservationHours, setMaxReservationHours] = useState<number>(5);
   const [saveHoursStatus, setSaveHoursStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [savingHours, setSavingHours] = useState<boolean>(false);
+  const [importingBackup, setImportingBackup] = useState<boolean>(false);
+  const [restoreStatus, setRestoreStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const [enabledFeatures, setEnabledFeatures] = useState<Record<string, boolean>>({
     calendar: true,
@@ -284,6 +289,87 @@ export default function ConfigurationPanel({ currentUser }: ConfigurationPanelPr
     } finally {
       setResettingDb(false);
     }
+  };
+
+  // Download Backup JSON file
+  const handleDownloadBackup = () => {
+    try {
+      const link = document.createElement("a");
+      link.href = "/api/admin/backup";
+      link.download = "respaldo_residencial_kuaukali.json";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (e: any) {
+      alert("Error al intentar descargar el respaldo: " + e.message);
+    }
+  };
+
+  // Restore/Import Backup JSON file
+  const handleRestoreBackup = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const isConfirmed = confirm(
+      "⚠️ ¿ADVERTENCIA CRÍTICA DE RESTAURACIÓN DE RESPALDO! ⚠️\n\n" +
+      "Al restaurar este archivo de respaldo, se SOBREESCRIBIRÁ absolutamente toda la información actual " +
+      "(usuarios, reservas, propiedades, pagos, etc.) con la información contenida en el archivo JSON.\n\n" +
+      "¿Desea continuar de todos modos?"
+    );
+
+    if (!isConfirmed) {
+      event.target.value = ""; // clear input
+      return;
+    }
+
+    setImportingBackup(true);
+    setRestoreStatus(null);
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const fileContent = e.target?.result as string;
+        const backupData = JSON.parse(fileContent);
+
+        const res = await fetch("/api/admin/restore", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(backupData),
+        });
+
+        if (res.ok) {
+          setRestoreStatus({
+            type: "success",
+            message: "¡La base de datos se ha restaurado y sincronizado exitosamente! El portal se recargará en unos segundos..."
+          });
+          setTimeout(() => {
+            window.location.reload();
+          }, 3500);
+        } else {
+          const errData = await res.json();
+          setRestoreStatus({
+            type: "error",
+            message: "Error al restaurar: " + (errData.error || "Formato de archivo no admitido o datos incorrectos.")
+          });
+        }
+      } catch (err: any) {
+        setRestoreStatus({
+          type: "error",
+          message: "Error de lectura del archivo: Asegúrese de que sea un archivo JSON válido generado por este sistema."
+        });
+      } finally {
+        setImportingBackup(false);
+        event.target.value = ""; // clear input
+      }
+    };
+
+    reader.onerror = () => {
+      setRestoreStatus({ type: "error", message: "Error al leer el archivo seleccionado." });
+      setImportingBackup(false);
+      event.target.value = ""; // clear input
+    };
+
+    reader.readAsText(file);
   };
 
   // Add reservation norm
@@ -745,6 +831,59 @@ export default function ConfigurationPanel({ currentUser }: ConfigurationPanelPr
               </button>
             </div>
           </div>
+
+          {/* Backup & Restore Panel */}
+          {(currentUser.id === "u_admin" || currentUser.role === "admin") && (
+            <div className="bg-teal-50/60 rounded-2xl border border-teal-150 p-6 shadow-xs space-y-4">
+              <div className="border-b border-teal-200 pb-3 flex items-center space-x-2 text-teal-800">
+                <Database className="h-5 w-5 text-teal-600" />
+                <h3 className="font-bold font-sans text-xs uppercase tracking-wider">Copia de Seguridad y Migración</h3>
+              </div>
+              
+              <p className="text-xs text-teal-700 leading-relaxed font-sans">
+                Descargue un respaldo completo de la base de datos (usuarios, reservas, propiedades, pagos, etc.) para guardarlo localmente o migrar este sistema a otro servidor. También puede restaurar un respaldo previo aquí.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                {/* Download Backup Button */}
+                <button
+                  type="button"
+                  onClick={handleDownloadBackup}
+                  className="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 px-3 rounded-xl transition-all flex items-center justify-center space-x-2 cursor-pointer shadow-xs text-xs font-sans border border-teal-500"
+                >
+                  <Download className="h-4 w-4" />
+                  <span>Descargar Respaldo</span>
+                </button>
+
+                {/* Restore Backup Area */}
+                <div className="relative">
+                  <input
+                    type="file"
+                    accept=".json"
+                    id="restore-backup-upload"
+                    onChange={handleRestoreBackup}
+                    className="hidden"
+                    disabled={importingBackup}
+                  />
+                  <label
+                    htmlFor="restore-backup-upload"
+                    className="w-full bg-white hover:bg-slate-50 text-slate-700 font-bold py-2.5 px-3 rounded-xl transition-all flex items-center justify-center space-x-2 cursor-pointer shadow-xs text-xs font-sans border border-slate-300 text-center"
+                  >
+                    <Upload className="h-4 w-4 text-slate-500" />
+                    <span>{importingBackup ? "Cargando..." : "Subir y Restaurar"}</span>
+                  </label>
+                </div>
+              </div>
+
+              {restoreStatus && (
+                <div className={`p-3 rounded-xl text-xs font-medium leading-relaxed ${
+                  restoreStatus.type === "success" ? "bg-emerald-50 text-emerald-800 border border-emerald-150" : "bg-rose-50 text-rose-800 border border-rose-150"
+                }`}>
+                  {restoreStatus.message}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Admin System Maintenance (Only for Sys Admin u_admin or admin role) */}
           {(currentUser.id === "u_admin" || currentUser.role === "admin") && (
