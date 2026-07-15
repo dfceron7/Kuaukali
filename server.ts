@@ -1674,13 +1674,22 @@ function getRequiredMonths(): string[] {
   const currentMonthStr = `${monthNames[currentMonthIdx]} ${currentYear}`;
   const currentMonthGlobalIdx = monthsList.indexOf(currentMonthStr);
   
-  // Required months are all months prior to the current month in course
+  // Rule: Residents have until day 5 (or configured day) of the current month to pay.
+  // If we are past the payment day limit, the current month is also REQUIRED/OVERDUE.
+  const config = db.config || {};
+  const paymentDayLimit = typeof config.moraPaymentDay === 'number' ? config.moraPaymentDay : 5;
+  const currentDay = now.getDate();
+  
+  let requiredCount = currentMonthGlobalIdx;
+  if (currentMonthGlobalIdx !== -1 && currentDay > paymentDayLimit) {
+    requiredCount = currentMonthGlobalIdx + 1; // Include the current month
+  }
+  
   const availableMonths = currentMonthGlobalIdx !== -1 
-    ? monthsList.slice(0, currentMonthGlobalIdx)
+    ? monthsList.slice(0, requiredCount)
     : monthsList.slice(0, 6); // fallback
 
   // Filter based on configured start month
-  const config = db.config || {};
   const startMonth = config.moraStartMonth || "Enero 2026";
   const startIdx = monthsList.indexOf(startMonth);
   if (startIdx !== -1) {
@@ -1705,10 +1714,9 @@ function getHousePaymentStatus(houseName: string) {
   const paid = getPaidMonthsForHouse(houseName);
   const pendingMonths = required.filter((m) => !paid.includes(m));
   
-  // Use config threshold
-  const config = db.config || {};
-  const moraThreshold = typeof config.moraThresholdMonths === 'number' ? config.moraThresholdMonths : 1;
-  const status = pendingMonths.length >= moraThreshold ? "mora" : "al_dia";
+  // Status: if they have ANY pending months, they are in Mora.
+  // This supports the new rule: "ya no seria por meses sino que seria el mes actual si no se paga antes del 5"
+  const status = pendingMonths.length >= 1 ? "mora" : "al_dia";
   
   return {
     house: houseName,
@@ -2218,6 +2226,7 @@ app.post("/api/admin/restore", async (req, res) => {
 app.get("/api/config", (req, res) => {
   const config = db.config || {
     moraThresholdMonths: 3,
+    moraPaymentDay: 5,
     moraStartMonth: "Enero 2026",
     monthlyFee: 100,
     feeHistory: [],
@@ -2228,15 +2237,19 @@ app.get("/api/config", (req, res) => {
       "Se requiere comprobante de transferencia bancaria visible para estudio administrativo."
     ]
   };
+  if (config.moraPaymentDay === undefined) {
+    config.moraPaymentDay = 5;
+  }
   res.json(config);
 });
 
 app.post("/api/config", (req, res) => {
-  const { moraThresholdMonths, moraStartMonth, reservationNorms, monthlyFee, enabledFeatures, maxReservationHours } = req.body;
+  const { moraThresholdMonths, moraPaymentDay, moraStartMonth, reservationNorms, monthlyFee, enabledFeatures, maxReservationHours } = req.body;
   
   if (!db.config) {
     db.config = {
       moraThresholdMonths: 3,
+      moraPaymentDay: 5,
       moraStartMonth: "Enero 2026",
       monthlyFee: 100,
       feeHistory: [],
@@ -2260,6 +2273,11 @@ app.post("/api/config", (req, res) => {
   if (moraThresholdMonths !== undefined) {
     db.config.moraThresholdMonths = Number(moraThresholdMonths);
   }
+
+  if (moraPaymentDay !== undefined) {
+    db.config.moraPaymentDay = Number(moraPaymentDay);
+  }
+  
   if (moraStartMonth !== undefined) {
     db.config.moraStartMonth = moraStartMonth;
   }

@@ -29,6 +29,7 @@ interface ConfigurationPanelProps {
 
 interface AppConfig {
   moraThresholdMonths: number;
+  moraPaymentDay?: number;
   moraStartMonth: string;
   reservationNorms: string[];
   monthlyFee?: number;
@@ -47,7 +48,8 @@ interface PaymentStatusReport {
 
 export default function ConfigurationPanel({ currentUser }: ConfigurationPanelProps) {
   // Config States
-  const [moraThreshold, setMoraThreshold] = useState<number>(3);
+  const [moraThreshold, setMoraThreshold] = useState<number>(1);
+  const [moraPaymentDay, setMoraPaymentDay] = useState<number>(5);
   const [moraStartMonth, setMoraStartMonth] = useState<string>(`Enero ${new Date().getFullYear()}`);
   const [norms, setNorms] = useState<string[]>([]);
   const [newNorm, setNewNorm] = useState<string>("");
@@ -114,6 +116,7 @@ export default function ConfigurationPanel({ currentUser }: ConfigurationPanelPr
       if (res.ok) {
         const data: AppConfig = await res.json();
         setMoraThreshold(data.moraThresholdMonths ?? 1);
+        setMoraPaymentDay(data.moraPaymentDay ?? 5);
         setMoraStartMonth(data.moraStartMonth ?? `Enero ${currentYear}`);
         setNorms(data.reservationNorms ?? []);
         setMonthlyFee(data.monthlyFee ?? 50);
@@ -175,6 +178,7 @@ export default function ConfigurationPanel({ currentUser }: ConfigurationPanelPr
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           moraThresholdMonths: Number(moraThreshold),
+          moraPaymentDay: Number(moraPaymentDay),
           moraStartMonth,
           monthlyFee: Number(monthlyFee)
         })
@@ -591,21 +595,22 @@ export default function ConfigurationPanel({ currentUser }: ConfigurationPanelPr
 
                 <div>
                   <label className="block font-bold text-slate-700 mb-1.5">
-                    Meses para considerar en MORA:
+                    Día límite de pago mensual (Día del mes):
                   </label>
                   <div className="flex items-center space-x-2">
+                    <span className="text-slate-500 font-medium">Hasta el día</span>
                     <input
                       type="number"
                       min="1"
-                      max="12"
-                      value={moraThreshold}
-                      onChange={(e) => setMoraThreshold(Math.max(1, parseInt(e.target.value) || 1))}
-                      className="w-20 pl-3 pr-2 py-2 rounded-lg border border-slate-300 bg-slate-50 text-slate-900 font-bold focus:bg-white focus:outline-hidden text-center"
+                      max="28"
+                      value={moraPaymentDay}
+                      onChange={(e) => setMoraPaymentDay(Math.min(28, Math.max(1, parseInt(e.target.value) || 1)))}
+                      className="w-20 pl-3 pr-2 py-2 rounded-lg border border-slate-300 bg-slate-50 text-slate-900 font-bold focus:bg-white focus:outline-hidden text-center text-xs"
                     />
-                    <span className="text-slate-500 font-medium">meses o más sin pagar</span>
+                    <span className="text-slate-500 font-medium">de cada mes</span>
                   </div>
-                  <p className="text-[10px] text-slate-450 mt-1">
-                    Si una propiedad tiene este número (o más) de meses pendientes de pago, su estado cambiará automáticamente a "Mora".
+                  <p className="text-[10px] text-slate-450 mt-1 leading-relaxed">
+                    Los residentes tienen hasta el día seleccionado para registrar el pago de la cuota de mantenimiento del mes en curso. Si pasan de esta fecha sin haber cancelado el mes actual, su estado cambiará automáticamente a <strong>"Mora"</strong>. De igual forma, cualquier mes anterior pendiente de pago causará estado de Mora inmediatamente.
                   </p>
                 </div>
 
